@@ -81,26 +81,29 @@ class Birthday(commands.Cog):
                 self.bot.logger.warning(f"Could not find user with ID {birthday[0]}")
                 continue
 
+            date = datetime(birthday[1].year, birthday[1].month, birthday[1].day)
+            years_old = relativedelta(datetime.now(), date).years
+
             # Is it inefficent to define a list of greetings per iteration? Yes
             # Am I hoping python somehow will automatically optimize my code? Yes
             # Have I checked whether or not that's the case? No
             # Do I bother to? No
             greetings = [
-                f"Gratulerer med dagen {user.mention}! 🥳",
+                f"Gratulerer med {years_old}-årsdagen {user.mention}! 🥳",
                 f"GRALLA BALLA!!! {user.mention}",
-                f"Hurra for deg som fyller år i dag! {user.mention}",
+                f"Hurra for deg som fyller {years_old} år i dag! {user.mention}",
                 f"HOLY HECKIN' POGGERS legenden {user.mention} har bursdag i dag POG POG POG",
-                f"Cakes and candles brother! 🙏 {user.mention}",
+                f"Cakes and candles brother! 🙏 {years_old} år i dag {user.mention}",
                 "Som en AI-chatbot kan jeg ikke generere så personlige ting som bursdagshilsener for deg... "
-                + f"nei vent jeg er jo et menneske. Til lykke med dagen {user.mention}!",
+                + f"nei vent jeg er jo et menneske. Til lykke med {years_old}-årsdagen {user.mention}!",
                 f"{user.mention} har bursdag i dag! Sørg for å spise mye kake, is og oppvaskmaskinpølser.",
-                f"WOWOWOW {user.mention} har faktisk bursdag i dag! Kan dere tro det? Dette må feires!",
+                f"WOWOWOW {user.mention} fyller faktisk {years_old} år i dag! Kan dere tro det? Dette må feires!",
                 f"Hvorfor er det ingen som snakker om at det er selveste bursdagen til {user.mention} i dag? "
-                + "Håper dagen din blir fin!",
-                f"FOLKENS! I dag blir {user.mention} ett år eldre. Grattis!!!!!",
-                f"# AKKURAT NÅ! AKKURAT NÅ!\n{user.mention} fyller år i dag!\n# AKKURAT NÅ! AKKURAT NÅ!",
+                + f"Håper {years_old}-årsdagen din blir fin!",
+                f"FOLKENS! I dag blir {user.mention} ett år eldre, altså {years_old} år. Grattis!!!!!",
+                f"# AKKURAT NÅ! AKKURAT NÅ!\n{user.mention} fyller {years_old} år i dag!\n# AKKURAT NÅ! AKKURAT NÅ!",
                 "χρόνια πολλά! जन्मदिन की शुभकामनाएँ! สุขสันต์วันเกิด! 生日快樂! з днем ​​народження! お誕生日おめでとう\n\n"
-                + f"Med andre ord: GRATULERER MED DAGEN {user.mention}!!!",
+                + f"Med andre ord: GRATULERER MED {years_old}-ÅRSDAGEN {user.mention}!!!",
             ]
             message = random.choice(greetings)
 
