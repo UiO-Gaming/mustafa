@@ -111,7 +111,7 @@ class Birthday(commands.Cog):
                 )
 
             if user.id == 170506717140877312:
-                message = f"Ett steg nærmere døden i dag broder,,, Ikkje bra,,, {user.mention}"
+                message = f"Ett steg nærmere døden i dag broder,,, Iskjhe bra,,, {user.mention}"
 
             await channel.send(message)
 
