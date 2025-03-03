@@ -68,7 +68,7 @@ class Birthday(commands.Cog):
         )
 
         birthdays = self.cursor.fetchall()
-        self.bot.logger.info(f"Found the following birthdays: {birthdays}")  # TODO: Temporary. Remove
+        self.bot.logger.info(f"Found the following birthdays: {birthdays}")
 
         if not birthdays:
             return
