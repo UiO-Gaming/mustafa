@@ -208,7 +208,7 @@ class Misc(commands.Cog):
         land = land.upper()
         år = datetime.now().year if not år else int(år)
 
-        data = requests.get(f"https://date.nager.at/api/v2/publicholidays/{år}/{land}", timeout=10)
+        data = requests.get(f"https://date.nager.at/api/v3/publicholidays/{år}/{land}", timeout=10)
         if data.status_code != 200:
             embed = embed_templates.error_warning("Ugyldig land\nHusk å bruke landskoder\n" + "For eksempel: `NO`")
             return await interaction.response.send_message(embed=embed)
