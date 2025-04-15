@@ -18,7 +18,7 @@ class FunReplies(commands.Cog):
         # Cooldowns for trigger words
         #
         # This is kind of a shitty way to do it but I'm too lazy to implement anything good right now
-        self.cooldown_seconds = 120
+        self.cooldown_seconds = 600
         initial_datetime = datetime(
             2000, 9, 11
         )  # Set initial datetime far in the past to allow triggering right after boot
