@@ -29,7 +29,6 @@ class FunReplies(commands.Cog):
             "sivert": initial_datetime,
             "borgerlønn": initial_datetime,
             "bærum": initial_datetime,
-            "makrellitomat": initial_datetime,
         }
 
     @commands.Cog.listener("on_message")
@@ -58,13 +57,6 @@ class FunReplies(commands.Cog):
             ),
             (r"(^|\W)(jeg?|(e|æ)(g|j)?|i) er? sivert arntzen($|\W)+", "Nei, jeg er Sivert Arntzen!", "sivert"),
             (r"(^|\W)bærum(\W|$)", "Sa noen Bærum? 👀🍾 <@205741213050077185>", "bærum"),
-            (
-                r"(^|\W)makrell i tomat(\W|$)",
-                "> Makrell i tomat\n||https://cdn.discordapp.com/attachments/674726496878723082/1361791742159884431/"
-                + "20250411_1659_Surprise_Vomiting_Moment_remix_01jrjnnqftfpm9bdcb4bk3tgjh.png?ex=68000ae4&is=67feb964&hm="
-                + "06b93b8fac96fea4bf4c3618df2d9259d29117571e69d7bd30fb033a3595607e&||",
-                "makrellitomat",
-            ),
         ]
 
         for trigger in triggers:
