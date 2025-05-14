@@ -354,6 +354,33 @@ class Misc(commands.Cog):
 
         await interaction.response.send_message(copypasta)
 
+    @app_commands.checks.cooldown(1, 2)
+    @app_commands.command(name="cs2excuse", description="Generates excuses for not shooting heads")
+    async def cs2excuse(self, interaction: discord.Interaction):
+        """
+        When you're being a weak mf and don't want to shoot heads.
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): Slash command context object
+        """
+
+        excuses = [
+            "I'm tired",
+            "I have a headache",
+            "I am hungover and might puke mid-game",
+            "I just need to jerk off first",
+            "I'm pretending to study",
+            "I need to eat, my aim isn't as good when I'm hungry",
+            "I'm worried Markus will teamkill me",
+            "I'm terrified of Dust II",
+            "I have explosive diarrhea",
+            "I have converted to pacifism",
+        ]
+
+        random_excuse = random.choice(excuses)
+
+        await interaction.response.send_message(random_excuse)
 
 async def setup(bot: commands.Bot):
     """
