@@ -526,6 +526,46 @@ class Info(commands.Cog):
         embed.set_image(url=emoji.url)
         await interaction.response.send_message(embed=embed)
 
+    @commands.guild_only()
+    @commands.bot_has_permissions(embed_links=True)
+    @commands.cooldown(1, 2, commands.BucketType.user)
+    @commands.command(name="sticker", description="Hent informasjon om en sticker på serveren")
+    async def sticker(self, ctx: commands.Context):
+        """
+        Get information about a sticker in the server
+
+        Parameters
+        ----------
+        ctx (commands.Context): Command context object
+        """
+
+        if ctx.message.type != discord.MessageType.reply:
+            embed = embed_templates.error_warning("Du må svare på en melding som inneholder en sticker")
+            return await ctx.reply(embed=embed)
+
+        if ctx.message.reference and isinstance(ctx.message.reference.resolved, discord.Message):
+            replied_message = ctx.message.reference.resolved
+        elif ctx.message.reference:
+            try:
+                replied_message = await ctx.message.channel.fetch_message(ctx.message.reference.message_id)
+            except discord.NotFound:
+                embed = embed_templates.error_warning("Kunne ikke hente meldingen du svarte på")
+                return await ctx.reply(embed=embed)
+
+        sticker = await replied_message.guild.fetch_sticker(replied_message.stickers[0].id)
+        if not sticker:
+            embed = embed_templates.error_warning("Sticker kunne ikke hentes")
+            return await ctx.reply(embed=embed)
+
+        embed = discord.Embed(title=sticker.name, description=f"ID: {sticker.id}\n\n{sticker.description}")
+        embed.set_author(name=sticker.guild.name, icon_url=sticker.guild.icon)
+        embed.add_field(name="Opprettet", value=discord.utils.format_dt(sticker.created_at, style="F"))
+        embed.add_field(name="Format", value=str(sticker.format).split(".")[-1].upper())
+        embed.add_field(name="Emoji", value=sticker.emoji)
+        embed.add_field(name="Lagt til av", value=sticker.user.mention if sticker.user else "Ikke tilgjengelig")
+        embed.set_image(url=sticker.url)
+        await ctx.reply(embed=embed)
+
     guild_oldest_group = app_commands.Group(
         name="eldst", description="Viser de eldste medlemmene på serveren", parent=guild_group
     )
