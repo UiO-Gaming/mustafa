@@ -305,9 +305,7 @@ class _KickSelectMenu(discord.ui.Select):
     def __init__(self, parent_view: LobbyView):
         self.parent_view = parent_view
         options = [
-            discord.SelectOption(
-                label=p.display_name, value=str(p.id), emoji="🔨", description=f"Kick {p.display_name}"
-            )
+            discord.SelectOption(label=p.display_name, value=str(p.id), emoji="🔨", description=f"Kick {p.display_name}")
             for p in self.parent_view.lobby.players
         ]
         super().__init__(placeholder="Kick en spiller", max_values=1, min_values=1, options=options)

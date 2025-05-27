@@ -382,6 +382,7 @@ class Misc(commands.Cog):
 
         await interaction.response.send_message(random_excuse)
 
+
 async def setup(bot: commands.Bot):
     """
     Add the cog to the bot on extension load
