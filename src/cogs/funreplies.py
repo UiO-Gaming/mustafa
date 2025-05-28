@@ -56,7 +56,7 @@ class FunReplies(commands.Cog):
                 r"(^|\W)skal? aldri drikke?[\w\s]*igjen($|\W)+",
                 ":billed_cap:\nhttps://cdn.discordapp.com/attachments/811606213665357824/1320756460321378396/v15044gf0000ctk1refog65kh5pqtpkg.mov",
                 "drikke",
-                75
+                75,
             ),
             (r"(^|\W)(jeg?|(e|æ)(g|j)?|i) er? sivert arntzen($|\W)+", "Nei, jeg er Sivert Arntzen!", "sivert", 100),
             (r"(^|\W)bærum(\W|$)", "Sa noen Bærum? 👀🍾 <@205741213050077185>", "bærum", 50),
@@ -66,12 +66,23 @@ class FunReplies(commands.Cog):
         for trigger in triggers:
             regex, reply, cooldown_key, chance = trigger
             if await self.trigger(
-                message=message, regex_match=regex, reply=reply, cooldown_key=cooldown_key, regex_flags=re.IGNORECASE, trigger_chance=chance
+                message=message,
+                regex_match=regex,
+                reply=reply,
+                cooldown_key=cooldown_key,
+                regex_flags=re.IGNORECASE,
+                trigger_chance=chance,
             ):
                 return
 
     async def trigger(
-        self, message: discord.Message, regex_match: str, reply: str, cooldown_key: str, regex_flags=None, trigger_chance: int = 100
+        self,
+        message: discord.Message,
+        regex_match: str,
+        reply: str,
+        cooldown_key: str,
+        regex_flags=None,
+        trigger_chance: int = 100,
     ) -> bool:
         """
         Add a trigger to the bot
