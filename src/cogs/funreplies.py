@@ -57,6 +57,7 @@ class FunReplies(commands.Cog):
             ),
             (r"(^|\W)(jeg?|(e|æ)(g|j)?|i) er? sivert arntzen($|\W)+", "Nei, jeg er Sivert Arntzen!", "sivert"),
             (r"(^|\W)bærum(\W|$)", "Sa noen Bærum? 👀🍾 <@205741213050077185>", "bærum"),
+            (r"(^|\W)ost(\W|$)", "Lol, Robert ost"🧀, "ost"),
         ]
 
         for trigger in triggers:
