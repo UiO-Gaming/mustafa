@@ -8,6 +8,7 @@ from dateutil.relativedelta import relativedelta
 from discord import app_commands
 from discord.ext import commands
 from discord.ext import tasks
+from japanera import EraDate
 
 from cogs.utils import discord_utils
 from cogs.utils import embed_templates
@@ -314,11 +315,15 @@ class Birthday(commands.Cog):
         next_birthday = self.fetch_user_next_birthday(bruker.id)
         next_birthday_days = (next_birthday - datetime.now()).days
 
+        # Japanese era
+        japanese_era = EraDate.from_date(birthday).strftime("%-K%-y年")
+
         embed = discord.Embed(description=bruker.mention, color=bruker.color)
         embed.set_thumbnail(url=bruker.display_avatar)
         embed.set_author(name=bruker.name, icon_url=bruker.display_avatar)
         embed.add_field(name="Bursdag", value=discord.utils.format_dt(birthday, style="D"))
         embed.add_field(name="Hvor gammel?", value=f"{years_old} år\n({days_old} dager)", inline=False)
+        embed.add_field(name="Weeb age", value=japanese_era, inline=False)
         embed.add_field(
             name="Neste bursdag om",
             value=f'{next_birthday_days} {"dager" if next_birthday_days != 1 else "dag"}',
