@@ -4,6 +4,7 @@ from datetime import datetime
 from hashlib import md5
 from io import BytesIO
 
+import dateparser
 import discord
 import requests
 from discord import app_commands
@@ -331,6 +332,29 @@ class Misc(commands.Cog):
             outcome = "Mynt"
 
         await interaction.response.send_message(outcome)
+
+    @app_commands.checks.cooldown(1, 2)
+    @app_commands.command(name="mennesketid", description="Konverter tid i menneskelig format til dato og klokkeslett")
+    async def humantime(self, interaction: discord.Interaction, tekst: str):
+        """
+        Convert human-readable time to date and time
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): Slash command context object
+        tekst (str): Human-readable time string
+        """
+
+        parsed_time = dateparser.parse(
+            tekst,
+            languages=["nb", "nn", "en"],
+        )
+        if not parsed_time:
+            embed = embed_templates.error_warning("Forstod ikke tidspunktet. Prøv å skrive det på en annen måte.")
+            return await interaction.response.send_message(embed=embed)
+
+        timestamp = discord.utils.format_dt(parsed_time, style="F")
+        await interaction.response.send_message(timestamp)
 
     @app_commands.checks.cooldown(1, 2)
     @app_commands.command(name="smellynerds", description="MAKE AN EXE FILE")
