@@ -109,7 +109,7 @@ class Meme(commands.Cog):
 
     @app_commands.checks.bot_has_permissions(embed_links=True, attach_files=True)
     @app_commands.checks.cooldown(1, 5)
-    @app_commands.command(name="wojakpoint", description="Se hvor mye du matcher med en annen")
+    @app_commands.command(name="wojakpoint", description="Få UiO Gaming-medlemmer til å peke på et bilde")
     async def wojakpoint(self, interaction: discord.Interaction, file: discord.Attachment):
         """
         Make glorious UiO Gaming members point at your desired picture
