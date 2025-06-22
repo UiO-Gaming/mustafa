@@ -59,7 +59,7 @@ class FunReplies(commands.Cog):
                 75,
             ),
             (r"(^|\W)(jeg?|(e|æ)(g|j)?|i) er? sivert arntzen($|\W)+", "Nei, jeg er Sivert Arntzen!", "sivert", 100),
-            (r"(^|\W)bærum(\W|$)", "Sa noen Bærum? 👀🍾 <@205741213050077185>", "bærum", 50),
+            (r"(^|\W)bærum(\W|$)", "Sa noen Bærum? 👀🍾 <@205741213050077185> <@183635579483848705>", "bærum", 50),
             (r"(^|\W)ost(\W|$)", "Lol, Robert ost🧀", "ost", 10),
         ]
 
