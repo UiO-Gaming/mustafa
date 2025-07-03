@@ -5,7 +5,6 @@ from zoneinfo import ZoneInfo
 import discord
 import requests
 from discord.ext import commands
-from discord.ext import tasks
 
 
 class WebsiteEvents(commands.Cog):
@@ -27,8 +26,6 @@ class WebsiteEvents(commands.Cog):
             f"https://{self.bot.sanity['project_id']}.api.sanity.io"
             + f"/v2021-03-25/data/mutate/{self.bot.sanity['dataset']}"
         )
-
-        self.sync_events_loop.start()
 
     async def cog_load(self):
         asyncio.create_task(self.after_ready())
@@ -59,15 +56,6 @@ class WebsiteEvents(commands.Cog):
                 await self.create_event(event)
 
         self.bot.logger.info("Finished syncing events! Note errors may have occured")
-
-    @tasks.loop(hours=12, reconnect=True)
-    async def sync_events_loop(self):
-        """
-        Sync events from Discord to Sanity CMS every 12 hours.
-        This is a temporary meassure to make sure events are deleted when cancelled
-        """
-
-        await self.sync_events()
 
     @commands.Cog.listener("on_scheduled_event_create")
     async def create_event(self, event: discord.ScheduledEvent):
