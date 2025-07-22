@@ -48,8 +48,9 @@ class WebsiteEvents(commands.Cog):
         self.bot.logger.info("Syncing events to Sanity CMS")
 
         guild = self.bot.get_guild(self.bot.guild_id)
+        events = await guild.fetch_scheduled_events()
 
-        for event in guild.scheduled_events:
+        for event in events:
             if event.status == discord.EventStatus.cancelled:
                 await self.delete_event(event)
             elif event.status == discord.EventStatus.scheduled:
