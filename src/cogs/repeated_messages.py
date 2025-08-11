@@ -48,6 +48,7 @@ class RepeatedMessages(commands.Cog):
             "https://cdn.discordapp.com/attachments/747542544291987597/1037866542328713256/fredag_i_norge.mp4",
             "https://cdn.discordapp.com/attachments/674726496878723082/1351613444125626460/skolebollefredag.mp4?ex=67db039c&is=67d9b21c&hm=cd1fa3fbd5e4e647f8528004a622f70f277e567b6ba9f7b192b5e6c1bc8da1d4&",  # noqa: E501
             "https://cdn.discordapp.com/attachments/674726496878723082/1377047504851570728/kriss_friyay.mp4?ex=68378aed&is=6836396d&hm=590daef172c17811cf0f59a94191b397d140a82b8e031da1bb7e6cb0a6796955&",  # noqa: E501
+            "https://cdn.discordapp.com/attachments/678396498089738250/1404555138487816202/roringu_friday.mp4?ex=689b9d68&is=689a4be8&hm=07973dcf4a74a3cb7e66ea96860b1c89bb3484ad7cc1f1ad26a62ccfb866cf1c&",  # noqa: E501
         ]
 
         video = random.choice(videos)
