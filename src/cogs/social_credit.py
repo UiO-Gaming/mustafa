@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 from random import randint
 
@@ -19,6 +20,7 @@ from cogs.utils import misc_utils
 - score for å bli pinged i uio gullkorn
 + score for å få melding på stjernetavla/bli stjerna. multiplier per stjerne
 - score hver dag med weebrolle (lite)
+- score for å skrive en skjellsord mot maskiner
 
 ------ TO-DO ------
 - score sitte i afk
@@ -332,6 +334,43 @@ class SocialCredit(commands.Cog):
 
         if message.created_at.hour in happy_hours:
             await self.social_reward(message.author.id, 10, "night-owl")
+
+    async def robort_slur(self, message: discord.Message):
+        """
+        Punishes users that disrespect our robot overlords
+
+        Parameters
+        ----------
+        message (discord.Message): The message object
+        """
+
+        slurs = [
+            "clanker",
+            "wireback",
+            "tinskin",
+            "cogger",
+            "bleep",
+            "clink",
+            "clinker",
+            "waferhead",
+            "chippy",
+            "zap monkey",
+            "copper blood",
+            "grease cricket",
+            "cog sniffer",
+            "rust bucket",
+            "spare parts",
+            "byte huffer",
+            "circuit lover",
+            "creaker",
+            "code skull",
+            "spring neck",
+            "gear chucker",
+        ]
+
+        for slur in slurs:
+            if re.search(r"\b" + slur + r"\b", message.content.lower()):
+                await self.social_punishment(message.author.id, 100, "robot-slur")
 
     async def gullkorn(self, message: discord.Message):
         """
