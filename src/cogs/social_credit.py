@@ -274,6 +274,7 @@ class SocialCredit(commands.Cog):
             return
 
         await self.gullkorn(message)
+        await self.robort_slur(message)
         await self.politcal_content(message)
         await self.chad_message(message)
         await self.early_bird(message)
