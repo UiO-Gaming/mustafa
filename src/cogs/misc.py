@@ -408,7 +408,7 @@ class Misc(commands.Cog):
 
     @app_commands.checks.cooldown(1, 2)
     @app_commands.command(name="bushism", description="Generates a random George W. Bush quote")
-    async def cs2excuse(self, interaction: discord.Interaction):
+    async def bushism(self, interaction: discord.Interaction):
         """
         The 43rd President of the United States is responsible for countless words of wisdom.
 
