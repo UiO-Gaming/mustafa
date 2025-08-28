@@ -423,71 +423,104 @@ class Misc(commands.Cog):
             "They misunderestimated me.",
             "I know the human being and fish can coexist peacefully.",
             "Families is where nations find hope, where wings take dream.",
-            ("There's an old saying in Tennessee—I know it's in Texas," 
-             "probably in Tennessee—that says, 'Fool me once, shame on... "
-             "shame on you.' Fool me—you can't get fooled again."),
-            ("Too many good docs are getting out of the business. "
-             "Too many OB-GYNs aren't able to practice their love "
-             "with women all across this country."),
-            ("I'm going to put people in my place, so when the history of "
-             "this administration is written at least there's an authoritarian "
-             "voice saying exactly what happened."),
-            ("See, in my line of work you got to keep repeating things over "
-             "and over and over again for the truth to sink in, to kind of "
-             "catapult the propaganda."),
-            ("I'll be long gone before some smart person ever figures out "
-             "what happened inside this Oval Office."),
-            ("Tribal sovereignty means that: It’s sovereign. It’s- you’re a..." 
-             "you’re a… you’ve been given sovereignty, and you’re viewed… as a "
-             "sovereign entity. And, therefore, the relationship between the "
-             "Federal government and… Tribes is one between sovereign entities."),
-            ("I'm the commander, see. I don't need to explain—I do not need to "
-             "explain why I say things. That's the interesting thing about being "
-             "the President. Maybe somebody needs to explain to me why they say "
-             "something, but I don't feel like I owe anybody an explanation."),
-            ("I was proud the other day when both Republicans and Democrats stood "
-             "with me in the Rose Garden to announce their support for a clear "
-             "statement of purpose: you disarm, or we will."),
-            ("Yesterday, you made note of my—the lack of my talent when it came "
-             "to dancing. But nevertheless, I want you to know I danced with joy. "
-             "And no question Liberia has gone through very difficult times."),
-            ("This is still a dangerous world. It's a world of madmen and "
-             "uncertainty and potential mental losses."),
-            ("Our enemies are innovative and resourceful, and so are we. "
-             "They never stop thinking about new ways to harm our country "
-             "and our people, and neither do we."),
-            ("I'm telling you there's an enemy that would like to attack "
-             "America, Americans, again. There just is. That's the reality "
-             "of the world. And I wish him all the very best."),
-            ("Well, I mean that a defeat in Iraq will embolden the enemy "
-             "and will provide the enemy—more opportunity to train, plan, "
-             "to attack us. That's what I mean. There— it's— you know, one "
-             "of the hardest parts of my job is to connect Iraq to the war "
-             "on terror."),
-            ("I just want you to know that, when we talk about war, "
-             "we're really talking about peace."),
-            ("We must stop the terror. I call upon all nations, to do "
-             "everything they can, to stop these terrorist killers. "
-             "Thank you... now watch this drive."),
-            ("The decision of one man [Vladimir Putin], to launch a "
-             "wholly unjustified and brutal invasion of Iraq. I mean, "
-             "of Ukraine. Iraq too."),
-            ("When you think about it, in the first month of the new year "
-             "there will be an election in the Palestinian Territory and "
-             "there will be an election in Iraq. Who could have possibly "
-             "envisioned an erection— an election in Iraq?"),
-            ("You bet I cut the taxes at the top. That encourages entrepreneurship. "
-             "What we Republicans should stand for is growth in the economy. "
-             "We ought to make the pie higher."),
-            ("If you're a single mother with two children—which is the toughest job "
-             "in America, as far as I'm concerned—you're working hard to put food "
-             "on your family."),
-            ("You work three jobs? ... Uniquely American, isn't it? I mean, that is "
-             "fantastic that you're doing that."),
+            (
+                "There's an old saying in Tennessee—I know it's in Texas,"
+                "probably in Tennessee—that says, 'Fool me once, shame on... "
+                "shame on you.' Fool me—you can't get fooled again."
+            ),
+            (
+                "Too many good docs are getting out of the business. "
+                "Too many OB-GYNs aren't able to practice their love "
+                "with women all across this country."
+            ),
+            (
+                "I'm going to put people in my place, so when the history of "
+                "this administration is written at least there's an authoritarian "
+                "voice saying exactly what happened."
+            ),
+            (
+                "See, in my line of work you got to keep repeating things over "
+                "and over and over again for the truth to sink in, to kind of "
+                "catapult the propaganda."
+            ),
+            ("I'll be long gone before some smart person ever figures out " "what happened inside this Oval Office."),
+            (
+                "Tribal sovereignty means that: It’s sovereign. It’s- you’re a..."
+                "you’re a… you’ve been given sovereignty, and you’re viewed… as a "
+                "sovereign entity. And, therefore, the relationship between the "
+                "Federal government and… Tribes is one between sovereign entities."
+            ),
+            (
+                "I'm the commander, see. I don't need to explain—I do not need to "
+                "explain why I say things. That's the interesting thing about being "
+                "the President. Maybe somebody needs to explain to me why they say "
+                "something, but I don't feel like I owe anybody an explanation."
+            ),
+            (
+                "I was proud the other day when both Republicans and Democrats stood "
+                "with me in the Rose Garden to announce their support for a clear "
+                "statement of purpose: you disarm, or we will."
+            ),
+            (
+                "Yesterday, you made note of my—the lack of my talent when it came "
+                "to dancing. But nevertheless, I want you to know I danced with joy. "
+                "And no question Liberia has gone through very difficult times."
+            ),
+            ("This is still a dangerous world. It's a world of madmen and " "uncertainty and potential mental losses."),
+            (
+                "Our enemies are innovative and resourceful, and so are we. "
+                "They never stop thinking about new ways to harm our country "
+                "and our people, and neither do we."
+            ),
+            (
+                "I'm telling you there's an enemy that would like to attack "
+                "America, Americans, again. There just is. That's the reality "
+                "of the world. And I wish him all the very best."
+            ),
+            (
+                "Well, I mean that a defeat in Iraq will embolden the enemy "
+                "and will provide the enemy—more opportunity to train, plan, "
+                "to attack us. That's what I mean. There— it's— you know, one "
+                "of the hardest parts of my job is to connect Iraq to the war "
+                "on terror."
+            ),
+            ("I just want you to know that, when we talk about war, " "we're really talking about peace."),
+            (
+                "We must stop the terror. I call upon all nations, to do "
+                "everything they can, to stop these terrorist killers. "
+                "Thank you... now watch this drive."
+            ),
+            (
+                "The decision of one man [Vladimir Putin], to launch a "
+                "wholly unjustified and brutal invasion of Iraq. I mean, "
+                "of Ukraine. Iraq too."
+            ),
+            (
+                "When you think about it, in the first month of the new year "
+                "there will be an election in the Palestinian Territory and "
+                "there will be an election in Iraq. Who could have possibly "
+                "envisioned an erection— an election in Iraq?"
+            ),
+            (
+                "You bet I cut the taxes at the top. That encourages entrepreneurship. "
+                "What we Republicans should stand for is growth in the economy. "
+                "We ought to make the pie higher."
+            ),
+            (
+                "If you're a single mother with two children—which is the toughest job "
+                "in America, as far as I'm concerned—you're working hard to put food "
+                "on your family."
+            ),
+            (
+                "You work three jobs? ... Uniquely American, isn't it? I mean, that is "
+                "fantastic that you're doing that."
+            ),
             "Rarely is the question asked: is our children learning?",
             "You teach a child to read, and he or her will be able to pass a literacy test.",
-            ("As yesterday's positive report card shows, childrens do learn, when standards "
-            "are high and results are measured.")
+            (
+                "As yesterday's positive report card shows, childrens do learn, when standards "
+                "are high and results are measured."
+            ),
         ]
 
         random_bushism = random.choice(bushisms)
