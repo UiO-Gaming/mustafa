@@ -120,6 +120,14 @@ class Birthday(commands.Cog):
                     + "https://youtu.be/9Fr3oLZnmvc"
                 )
 
+            if user.id == 897206214205788162:
+                message = (
+                    "Holy shit kan ikke tro at denne foreningen er eldre enn 06-folk! "
+                    + "Hvem skulle trodd at denne foreningen skulle klare seg mer enn 2 år?"
+                    + f"\n\nGrattis til {user.mention} og alle medlemmer! "
+                    + "\n\nDere vil motta 10+ i social credit score som gave snart:tm:"
+                )
+
             await channel.send(message)
 
     async def cog_unload(self):
