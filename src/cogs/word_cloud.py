@@ -299,7 +299,7 @@ class WordCloud(commands.Cog):
 
         self.consenting_users.append(interaction.user.id)
 
-        embed = embed_templates.success(interaction, "Samtykke registrert!")
+        embed = embed_templates.success("Samtykke registrert!")
         await interaction.response.send_message(embed=embed, ephemeral=False)
 
     @app_commands.checks.bot_has_permissions(embed_links=True)
