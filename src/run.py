@@ -15,6 +15,7 @@ DATABASE_RELIANT_COGS = {
     "gullkorn.py",
     "mc_whitelist.py",
     "social_credit.py",
+    "starboard_scraper.py",
     "streak.py",
     "user_facts.py",
     "word_cloud.py",
