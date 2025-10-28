@@ -81,6 +81,7 @@ class Bot(commands.Bot):
 
         # Sync slash commands
         if self.config_mode == "prod":
+            await bot.tree.clear_commands(guild=None)
             await self.tree.sync()
         else:
             self.tree.copy_global_to(guild=discord.Object(id=self.guild_id))
