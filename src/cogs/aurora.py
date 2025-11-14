@@ -51,9 +51,14 @@ class Aurora(commands.Cog):
             if (start - datetime.now()) > timedelta(hours=12):
                 continue
 
-            # We're gonna trust this value. Hopefully it takes sunlight, cloud cover and solar activity into account
-            # We're using an undocumented API so who knows. They probably know what they're doing over there.
-            if interval["auroraValue"] >= 0.5:
+            # We used to use "auroraValue" but it is deemed unreliable.
+            # We're using an undocumented API so who knows what it really means.
+            # Thus we need to guess what's considered good conditions ourselves
+            if (
+                interval["sunglight"]["id"] == "night"
+                and interval["kpIndex"] >= 5
+                and interval["cloudCover"]["value"] < 50
+            ):
                 valid_sightings.append(interval)
 
         if not valid_sightings:
