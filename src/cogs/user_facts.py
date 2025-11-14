@@ -378,7 +378,7 @@ class UserFacts(commands.Cog):
             other_index = self.mbti_list.index(other_mbti)
 
             similarity = 1 / self.similarity_matrix[user_index, other_index]
-            edge_length = 5 - similarity
+            edge_length = 2 ** (4 - similarity)
 
             graph.node(other_user.global_name, f"{other_user.global_name}\n{other_mbti}")
             graph.edge(user.global_name, other_user.global_name, len=str(edge_length))
