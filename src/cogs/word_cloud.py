@@ -181,7 +181,7 @@ class WordCloud(commands.Cog):
 
         return (
             message.author.id in self.consenting_users
-            and not message.clean_content[:2].isalpha()  # Naive check for traditional bot commands
+            and message.clean_content[:2].isalpha()  # Naive check for traditional bot commands
         )
 
     def tokenize(self, text: str) -> list[str]:
