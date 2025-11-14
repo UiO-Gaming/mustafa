@@ -359,13 +359,12 @@ class UserFacts(commands.Cog):
 
         return similarity_matrix
 
-    # TODO: fix this. The distances are wrong
     def create_mbti_graph(self, user_mbti: tuple[discord.Member, str], others: list[tuple[discord.Member, str]]):
         user, mbti = user_mbti
 
         # Create a Graphviz graph
         graph = graphviz.Graph(engine="neato", format="png")
-        graph.attr("graph", overlap="false")
+        graph.attr("graph", overlap="false", splines="True")
         graph.node_attr["style"] = "filled"
         graph.node_attr["shape"] = "circle"
 
@@ -376,16 +375,16 @@ class UserFacts(commands.Cog):
 
         # Add nodes and edges to other users
         for other_index, other in enumerate(others):
-            weight = (1 / self.similarity_matrix[user_index, other_index]) * 6
-            if weight == float("inf"):
-                weight = 6
-            elif weight == 0:
-                weight = 6.5
+            similarity = 1 / self.similarity_matrix[user_index, other_index]
+            if similarity > 0:
+                edge_length = 1 + (1 - similarity) * 4
+            else:
+                edge_length = 5
 
             other_user, other_mbti = other
 
             graph.node(other_user.global_name, f"{other_user.global_name}\n{other_mbti}")
-            graph.edge(user.global_name, other_user.global_name, len=str(weight), weight=str(weight))
+            graph.edge(user.global_name, other_user.global_name, len=str(edge_length))
 
         graph.render(f"{user.id}_mbti", directory="./src/assets/temp", view=False, overwrite_source=True)
 
