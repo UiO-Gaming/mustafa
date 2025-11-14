@@ -83,7 +83,7 @@ class MCWhitelist(commands.Cog):
         # Also unfortunate, we seemingly need to wrap the context manager like this to catch any exceptions
         try:
             with MCRcon(host="127.0.0.1", password=self.bot.mc_rcon_password, port=25575) as mcr:
-                mcr.command(f'whitelist add {data["name"]}')
+                mcr.command(f'whitelist add {data["id"]}')
                 mcr.command("whitelist reload")
         except Exception as e:
             self.bot.logger.error(f"Failed to use RCON: {e}")
