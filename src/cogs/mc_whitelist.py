@@ -108,6 +108,61 @@ class MCWhitelist(commands.Cog):
             embed=embed_templates.success(f'`{data["name"]}` er nå tilknyttet din discordbruker og whitelisted!')
         )
 
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.checks.cooldown(1, 5)
+    @whitelist_group.command(name="fjern", description="Fjern deg selv fra whitelist på minecraftserveren vår")
+    async def whitelist_remove(self, interaction: discord.Interaction):
+        """
+        Remove the invoking user from the minecraft server whitelist
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): Slash command context object
+        """
+
+        # Check if the discord user is in the db
+        self.cursor.execute(
+            """
+            SELECT *
+            FROM mc_whitelist
+            WHERE discord_id = %s
+            """,
+            (interaction.user.id,),
+        )
+        if not (result := self.cursor.fetchone()):
+            return await interaction.response.send_message(
+                embed=embed_templates.error_warning("Du har ikke en whitelisted bruker på vår minecraftserver")
+            )
+        mc_id = result[1]
+
+        # Remove user from whitelist on minecraft server
+        # Unfortunately, this requires an active connection to the server, with correct credentials
+        # Also unfortunate, we seemingly need to wrap the context manager like this to catch any exceptions
+        try:
+            with MCRcon(host="127.0.0.1", password=self.bot.mc_rcon_password, port=25575) as mcr:
+                mcr.command(f"whitelist remove {mc_id}")
+                mcr.command("whitelist reload")
+        except Exception as e:
+            self.bot.logger.error(f"Failed to use RCON: {e}")
+            return await interaction.response.send_message(
+                embed=embed_templates.error_fatal(
+                    "Klarte ikke å koble til minecraftserveren. Ta kontakt med din lokale teknisk ansvarlige",
+                )
+            )
+
+        # Remove user from db
+        self.cursor.execute(
+            """
+            DELETE FROM mc_whitelist
+            WHERE discord_id = %s
+            """,
+            (interaction.user.id,),
+        )
+
+        self.bot.logger.info(f"Removed {mc_id} (discord: {interaction.user.name}) from whitelist")
+
+        await interaction.response.send_message(embed=embed_templates.success("Du er nå fjernet fra whitelist!"))
+
 
 async def setup(bot: commands.Bot):
     """
