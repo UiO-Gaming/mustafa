@@ -35,10 +35,14 @@ class MCWhitelist(commands.Cog):
             """
         )
 
+    whitelist_group = app_commands.Group(
+        name="whitelist", description="Registrer eller fjern deg selv fra vår Minecraft whitelist"
+    )
+
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
-    @app_commands.command(name="whitelist", description="Whitelist minecraftbrukeren din på serveren vår")
-    async def whitelist(self, interaction: discord.Interaction, minecraftbrukernavn: str):
+    @whitelist_group.command(name="registrer", description="Whitelist minecraftbrukeren din på serveren vår")
+    async def whitelist_add(self, interaction: discord.Interaction, minecraftbrukernavn: str):
         """
         Whitelist a minecraft user on the Minecraft server
 
