@@ -8,7 +8,7 @@ from cogs.utils import embed_templates
 
 
 class MCWhitelist(commands.Cog):
-    """Stand alone cog for handling whitelisting of Discord users on the Minecraft server"""
+    """Standalone cog for handling whitelisting of Discord users on the Minecraft server"""
 
     def __init__(self, bot: commands.Bot):
         """
@@ -58,7 +58,7 @@ class MCWhitelist(commands.Cog):
 
         data = data.json()
 
-        # check if the discord user or minecraft user is in the db
+        # Check if the discord user or minecraft user is in the db
         self.cursor.execute(
             """
             SELECT *
