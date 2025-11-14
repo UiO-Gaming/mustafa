@@ -55,7 +55,7 @@ class Aurora(commands.Cog):
             # We're using an undocumented API so who knows what it really means.
             # Thus we need to guess what's considered good conditions ourselves
             if (
-                interval["sunglight"]["id"] == "night"
+                interval["sunlight"]["id"] == "night"
                 and interval["kpIndex"] >= 5
                 and interval["cloudCover"]["value"] < 50
             ):
