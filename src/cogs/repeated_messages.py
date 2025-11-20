@@ -66,8 +66,8 @@ class RepeatedMessages(commands.Cog):
         channel = guild.get_channel(self.general_channel)
         await channel.send(
             "ENDELIG MANDAG!\n\n"
-            # + "https://cdn.discordapp.com/attachments/678396498089738250/1168644637687283762/Snapchat-1787493720.mp4"  # noqa: E501
-            + "https://cdn.discordapp.com/attachments/678396498089738250/862853827278929940/hvorfor_de_rike_br_spises.mp4"  # noqa: E501
+            + "https://cdn.discordapp.com/attachments/678396498089738250/1168644637687283762/Snapchat-1787493720.mp4"  # noqa: E501
+            # + "https://cdn.discordapp.com/attachments/678396498089738250/862853827278929940/hvorfor_de_rike_br_spises.mp4"  # noqa: E501
         )
 
     @tasks.loop(time=misc_utils.MIDNIGHT)
