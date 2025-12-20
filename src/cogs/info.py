@@ -762,6 +762,38 @@ class Info(commands.Cog):
             embed.set_footer(text=bruker.name, icon_url=bruker.display_avatar)
             await interaction.response.send_message(embed=embed)
 
+    @app_commands.guild_only()
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.checks.cooldown(1, 2)
+    @user_group.command(name="manglenderoller", description="Se hvilke roller en bruker ikke har i en guild")
+    async def user_missing_roles(self, interaction: discord.Interaction, bruker: discord.Member | None = None):
+        """
+        See which roles a user does not have in a guild
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): Slash command context object
+        bruker (discord.Member, optional): User to get roles of. Defaults to None (invoker).
+        """
+
+        if not bruker:
+            bruker = interaction.user
+
+        missing_roles = set(interaction.guild.roles) - set(bruker.roles)
+
+        roles = self.construct_role_string(missing_roles)
+
+        # If the list of roles is too long, send it as a file
+        if len(roles) > 2048:
+            await discord_utils.send_as_txt_file(
+                interaction, roles, f"./assets/temp/{interaction.guild.id}_{interaction.user.id}_missing_roles.txt"
+            )
+        else:
+            embed = discord.Embed(color=bruker.color, description=roles)
+            embed.set_author(name=f"Manglende roller ({len(missing_roles)})", icon_url=bruker.display_avatar)
+            embed.set_footer(text=bruker.name, icon_url=bruker.display_avatar)
+            await interaction.response.send_message(embed=embed)
+
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 2)
     @user_group.command(name="avatar", description="Hent avatar til en bruker")
