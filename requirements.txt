@@ -8,7 +8,7 @@ moviepy==1.0.*
 nltk==3.9.*
 numpy==1.26.*
 opencv-python==4.8.*
-pillow==10.4.*
+pillow==12.1.*
 psutil==5.9.*
 psycopg2-binary==2.9.*
 pypandoc==1.13.*
