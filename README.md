@@ -10,7 +10,7 @@ UiO Gaming Discord Bot er en chattebot for ulike formål. Hvilke formål det er,
 
 2. Fyll inn verdiene i denne konfiguarsjonsfilen
 
-Merk at konfigurasjonsfilen har felt for bl.a. databasekobling. Disse er ikke påkrevd, men du vil derimot miste funksjonalitet om de ikke er fylt inn. Det eneste man *må* fylle inn, som ikke er fylt inn fra før, er `token`.
+Merk at konfigurasjonsfilen har felt for bl.a. databasekobling. Disse er ikke påkrevd, men du vil derimot miste funksjonalitet om de ikke er fylt inn. Det eneste man _må_ fylle inn, som ikke er fylt inn fra før, er `token`.
 
 Gitt en bruker med tilgang til å skrive og lese fra databasen vil botten lage alle tabeller den trenger for å fungere.
 
