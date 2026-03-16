@@ -19,7 +19,7 @@ Når token er fylt inn kan du så bevege deg videre til ett av to alternativer.
 ### Valgmulighet 1 - Docker (Anbefalt)
 
 ```
-docker-compose up
+docker compose up
 ```
 
 ### Valgmulighet 2 - Manuelt
