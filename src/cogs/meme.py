@@ -1,3 +1,4 @@
+import functools
 import os
 import subprocess
 from io import BytesIO
@@ -258,6 +259,40 @@ class Meme(commands.Cog):
             os.remove(pre_nightcored)
         except (FileNotFoundError, PermissionError):
             self.bot.logger.warn("Failed to remove temporary files")
+
+    @app_commands.checks.bot_has_permissions(attach_files=True)
+    @app_commands.checks.cooldown(1, 60)
+    @app_commands.command(name="crabrave", description="Generer en crab rave video basert på tekst")
+    async def crab_rave(self, interaction: discord.Interaction, topptekst: str, bunntekst: str):
+        """
+        Generates a crab rave video based on text
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): The interaction
+        topptekst (str): The upper text
+        bunntekst (str): The lower text
+        """
+
+        await interaction.response.defer()
+
+        generation_task = functools.partial(Meme.make_crab, topptekst, bunntekst, interaction.user.id)
+        await self.bot.loop.run_in_executor(None, generation_task)
+
+        temp_file = f"./src/assets/temp/{interaction.user.id}_crab.mp4"
+        try:
+            await interaction.followup.send(file=discord.File(temp_file))
+        except discord.errors.HTTPException:
+            self.bot.logger.warning(f"Failed to send temporary file {temp_file}")
+            await interaction.followup.send(
+                embed=embed_templates.error_warning("Failed to send video. File is probably too big."),
+                ephemeral=True,
+            )
+
+        try:
+            os.remove(temp_file)
+        except (FileNotFoundError, PermissionError):
+            self.bot.logger.warn(f"Failed to remove temporary file {temp_file}")
 
     @staticmethod
     def make_crab(top_text: str, bottom_text: str, user_id: int):
