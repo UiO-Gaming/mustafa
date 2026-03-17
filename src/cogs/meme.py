@@ -1,10 +1,11 @@
-import functools
 import os
+import subprocess
 from io import BytesIO
 
 import cv2
 import discord
 import numpy as np
+import yt_dlp
 from discord import app_commands
 from discord.ext import commands
 from moviepy import CompositeVideoClip
@@ -149,39 +150,114 @@ class Meme(commands.Cog):
         embed.set_image(url="attachment://uio_wojak.png")
         await interaction.followup.send(embed=embed, file=f)
 
+    # I can't be arsed to make this code good rn
+    # This code is absolute horse ass
+    # TODO:: improve this
     @app_commands.checks.bot_has_permissions(attach_files=True)
-    @app_commands.checks.cooldown(1, 60)
-    @app_commands.command(name="crabrave", description="Generer en crab rave video basert på tekst")
-    async def crab_rave(self, interaction: discord.Interaction, topptekst: str, bunntekst: str):
+    @app_commands.checks.cooldown(1, 30)
+    @app_commands.command(name="nightcore", description="nightcore en gitt lyd")
+    async def nightcore(self, interaction: discord.Interaction, søk: str = None, url: str = None):
         """
-        Generates a crab rave video based on text
+        Turn the user passed url or searched media into nightcore
 
         Parameters
         ----------
         interaction (discord.Interaction): The interaction
-        topptekst (str): The upper text
-        bunntekst (str): The lower text
+        søk (str|None): Search term to look up the media on YouTube
+        url (str|None): Link to the source media
         """
 
         await interaction.response.defer()
 
-        generation_task = functools.partial(Meme.make_crab, topptekst, bunntekst, interaction.user.id)
-        await self.bot.loop.run_in_executor(None, generation_task)
+        if not url and not søk:
+            return await interaction.followup.send(
+                embed=embed_templates.error_warning("Du må enten gi meg en link eller noe å søke etter"),
+                ephemeral=True,
+            )
 
-        temp_file = f"./src/assets/temp/{interaction.user.id}_crab.mp4"
+        max_seconds = 3600
+
+        def duration_filter(info_dict, *, incomplete):
+            """Filters out videos longer than the specified limit."""
+            duration = info_dict.get("duration")
+            if duration and duration > max_seconds:
+                return f"Skipping: Video is too long ({duration} seconds)"
+            return None
+
+        # make sure the url is used if both variables are used
+        pre_nightcored = f"./src/assets/temp/{interaction.user.id}_pre_nightcore"
+        options = {
+            "format": "bestaudio/best",
+            "default_search": "ytsearch",
+            "noplaylist": True,
+            "match_filter": duration_filter,
+            "postprocessors": [
+                {
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": "mp3",
+                    "preferredquality": "192",
+                }
+            ],
+            "outtmpl": f"{pre_nightcored}",
+            "quiet": True,
+            "no_warnings": True,
+        }
+        with yt_dlp.YoutubeDL(options) as ydl:
+            prefix = "ytsearch1:" if not url else ""
+            search_term = søk if not url else url
+            try:
+                info = ydl.extract_info(f"{prefix}{search_term}", download=True)
+            except Exception as e:
+                self.bot.logger.warning(f"Failed to download media {e}")
+                return await interaction.followup.send(
+                    embed=embed_templates.error_fatal("Klarte ikke å laste ned den forespurte sangen!"),
+                )
+
+        # AAAAAAAAAAAAAAA MY EYES
+        if "entries" in info:
+            info = info["entries"][0]
+        if not info or not info.get("duration") or info.get("duration") > max_seconds:
+            return await interaction.followup.send(
+                embed=embed_templates.error_warning(
+                    "Fant ingen gyldig lyd (kan være for lang eller utilgjengelig)."
+                    + "Jeg er for lat til å fikse noe ordentlig"
+                ),
+                ephemeral=True,
+            )
+
+        nightcored = f"./src/assets/temp/{interaction.user.id}_nightcore.mp3"
+        command = [
+            "ffmpeg",
+            "-loglevel",
+            "error",
+            "-i",
+            f"{pre_nightcored}.mp3",
+            "-af",
+            "asetrate=44100*1.33,atempo=1,aresample=44100,bass=g=6:f=100:w=0.5,volume=0.8",
+            nightcored,
+            "-y",  # Overwrite if exists
+        ]
+
         try:
-            await interaction.followup.send(file=discord.File(temp_file))
+            subprocess.run(command, check=True)
+            self.bot.logger.info(f"Successfully created nightcorified song at {nightcored}")
+        except subprocess.CalledProcessError as e:
+            self.bot.logger.error(f"Error during conversion: {e}")
+
+        try:
+            await interaction.followup.send(file=discord.File(nightcored))
         except discord.errors.HTTPException:
-            self.bot.logger.warning(f"Failed to send temporary file {temp_file}")
+            self.bot.logger.warning(f"Failed to send temporary file {nightcored}")
             await interaction.followup.send(
-                embed=embed_templates.error_warning("Failed to send video. File is probably too big."),
+                embed=embed_templates.error_warning("Failed to send file. It is probably too big."),
                 ephemeral=True,
             )
 
         try:
-            os.remove(temp_file)
+            os.remove(nightcored)
+            os.remove(pre_nightcored)
         except (FileNotFoundError, PermissionError):
-            self.bot.logger.warn(f"Failed to remove temporary file {temp_file}")
+            self.bot.logger.warn("Failed to remove temporary files")
 
     @staticmethod
     def make_crab(top_text: str, bottom_text: str, user_id: int):

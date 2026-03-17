@@ -16,3 +16,4 @@ regex==2026.2.28
 requests==2.32.*
 tzdata  # This only needed if run on windows. I haven't set a version either to ensure it's up to date.
 wordcloud==1.9.*
+yt-dlp==2026.3.13
