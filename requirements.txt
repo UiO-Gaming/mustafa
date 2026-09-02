@@ -4,7 +4,7 @@ graphviz==0.21.*
 Japanera==2.1.*
 mcrcon==0.7.*
 moviepy==2.2.*
-nltk==3.9.*
+nltk==3.10.*
 numpy==2.4.*
 opencv-python==4.13.*
 pillow>=9.2,<12.0
