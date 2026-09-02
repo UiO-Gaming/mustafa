@@ -1,4 +1,3 @@
-import codecs
 from os import listdir
 from time import time
 
@@ -26,7 +25,7 @@ MINECRAFT_RELIANT_COGS = {"mc_whitelist.py"}
 
 
 # Load config file
-with codecs.open("./src/config/config.yaml", "r", encoding="utf8") as f:
+with open("./src/config/config.yaml", "r", encoding="utf8") as f:
     config = yaml.load(f, Loader=yaml.SafeLoader)
 
 
