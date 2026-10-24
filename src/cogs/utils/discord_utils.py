@@ -268,7 +268,7 @@ class LobbyView(discord.ui.View):
 
         embed = interaction.message.embeds[0]
         embed.description = "Lobbyen har startet!"
-        await interaction.message.edit(embed=embed, view=self)
+        await interaction.response.edit_message(embed=embed, view=self)
 
     @discord.ui.button(label="Forlat", style=discord.ButtonStyle.gray)
     async def leave_lobby(self, interaction: discord.Interaction, button: discord.ui.Button):
