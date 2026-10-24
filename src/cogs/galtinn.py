@@ -52,7 +52,7 @@ class Galtinn(commands.Cog):
             headers={"Authorization": f"Token {self.bot.galtinn['auth_token']}"},
         )
         if data.status_code != 200 or not data.json():
-            self.logger.error(f"Failed to fetch data from Galtinn API: {data.status_code} - {data.text}")
+            self.bot.logger.error(f"Failed to fetch data from Galtinn API: {data.status_code} - {data.text}")
             embed = embed_templates.error_fatal("Noe gikk galt under henting av data fra Galtinn")
             return await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -81,7 +81,7 @@ class Galtinn(commands.Cog):
                 headers={"Authorization": f"Token {self.bot.galtinn['auth_token']}"},
             )
             if data.status_code != 200 or not data.json():
-                self.logger.error(f"Failed to make second Galtinn API request: {data.status_code} - {data.text}")
+                self.bot.logger.error(f"Failed to make second Galtinn API request: {data.status_code} - {data.text}")
                 embed = embed_templates.error_fatal("Noe gikk galt under henting av data fra Galtinn")
                 return await interaction.response.send_message(embed=embed, ephemeral=True)
 
