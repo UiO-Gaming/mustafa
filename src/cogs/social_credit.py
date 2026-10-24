@@ -246,7 +246,7 @@ class SocialCredit(commands.Cog):
         result = self.cursor.fetchall()
 
         if not result:
-            return await interaction.send(
+            return await interaction.followup.send(
                 embed=embed_templates.error_warning("Ingen brukere er registrert i databasen")
             )
 
