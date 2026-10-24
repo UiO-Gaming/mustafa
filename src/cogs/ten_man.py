@@ -17,7 +17,6 @@ from discord.ext import commands
 from cogs.utils import embed_templates
 from cogs.utils.discord_utils import Lobby
 from cogs.utils.discord_utils import LobbyView
-from cogs.utils.discord_utils import TempVoiceHelper
 
 
 class TenMan(commands.Cog):
@@ -284,7 +283,11 @@ class MoveTeamVoiceButton(discord.ui.Button):
         else:
             team = {"number": "2", "players": self.parent_view.teams[1]}
 
-        temp_voice = TempVoiceHelper(self.parent_view.bot)
+        # Reuse tempvoice logic from cog
+        if not (tempvoice_cog := self.parent_view.bot.get_cog("TempVoice")):
+            embed = embed_templates.error_fatal("Tempvoice er ikke tilgjengelig akkurat nå")
+            return await interaction.response.send_message(embed=embed, ephemeral=True, delete_after=10)
+        temp_voice = tempvoice_cog.temp_voice_helper
 
         if not self.clicked[team["number"]]:
             channel = await temp_voice.create_temp_voice(interaction, name=f"10 man - Lag {team['number']}")
