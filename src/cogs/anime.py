@@ -147,6 +147,22 @@ class Anime(commands.Cog):
         }
         return statuses.get(status, status)
 
+    def is_nsfw_channel(self, interaction: discord.Interaction) -> bool:
+        """
+        Checks whether the interaction's channel is age-restricted. DMs are never treated as NSFW
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): Slash command context object
+
+        Returns
+        ----------
+        (bool): Whether the channel is age-restricted
+        """
+
+        channel = interaction.channel
+        return isinstance(channel, (discord.abc.GuildChannel, discord.Thread)) and channel.is_nsfw()
+
     def remove_html(self, text: str) -> str:
         """
         Removes HTML tag elements
@@ -714,7 +730,7 @@ class Anime(commands.Cog):
             return
 
         nsfw = data["isAdult"]
-        if nsfw:
+        if nsfw and not self.is_nsfw_channel(interaction):
             embed = embed_templates.error_warning(
                 "Animen du søkte på er NSFW. Gjør kommandoen i en NSFW-kanal i stedet"
             )
@@ -872,7 +888,7 @@ class Anime(commands.Cog):
             return
 
         nsfw = data["isAdult"]
-        if nsfw:
+        if nsfw and not self.is_nsfw_channel(interaction):
             embed = embed_templates.error_warning(
                 "Mangaen du søkte på er NSFW. Gjør kommandoen i en NSFW-kanal i stedet"
             )
