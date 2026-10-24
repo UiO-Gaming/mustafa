@@ -43,6 +43,8 @@ class TempVoice(commands.Cog):
         """
 
         channel = await self.temp_voice_helper.create_temp_voice(interaction, name, limit)
+        if not channel:
+            return
 
         await interaction.response.send_message(
             embed=embed_templates.success(
