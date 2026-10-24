@@ -32,7 +32,7 @@ class Anime(commands.Cog):
 
         Parameters
         ----------
-        color (str): The color string returned from the Anilist API
+        color (str): The color string returned from the Anilist API. Either a color name or a hex code like #3db4f2
 
         Returns
         ----------
@@ -48,6 +48,11 @@ class Anime(commands.Cog):
             "green": 0x4CCA51,
             "gray": 0x677B94,
         }
+        if color and color.startswith("#"):
+            try:
+                return int(color[1:], 16)
+            except ValueError:
+                pass
         return colors.get(color, 0x677B94)
 
     def convert_media_format(self, media_format: str) -> str:
