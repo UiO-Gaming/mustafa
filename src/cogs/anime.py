@@ -588,7 +588,7 @@ class Anime(commands.Cog):
         color = self.convert_color(data["options"]["profileColor"])
 
         statuses = {
-            status["status"]: {"count": status["count"], "minutes": status["chaptersRead"]}
+            status["status"]: {"count": status["count"], "chapters": status["chaptersRead"]}
             for status in data["statistics"]["manga"]["statuses"]
         }
 
@@ -602,10 +602,10 @@ class Anime(commands.Cog):
             reading = 0
         try:
             planning = statuses["PLANNING"]["count"]
-            planning_days = statuses["PLANNING"]["chaptersRead"]
+            planning_chapters = statuses["PLANNING"]["chapters"]
         except KeyError:
             planning = 0
-            planning_days = 0
+            planning_chapters = 0
         try:
             dropped = statuses["DROPPED"]["count"]
         except KeyError:
@@ -626,7 +626,7 @@ class Anime(commands.Cog):
         embed.add_field(name="Antall volum lest", value=volumes_read)
         embed.add_field(name="Antall manga lest", value=completed)
         embed.add_field(name="Leser nå", value=reading)
-        embed.add_field(name="Planlegger å lese", value=f"{planning}\n({planning_days} kapitler)")
+        embed.add_field(name="Planlegger å lese", value=f"{planning}\n({planning_chapters} kapitler)")
         embed.add_field(name="Droppet", value=dropped)
         if most_read_genres:
             embed.add_field(name="Mest leste sjangere", value=most_read_genres, inline=False)
