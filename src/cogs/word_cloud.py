@@ -315,7 +315,7 @@ class WordCloud(commands.Cog):
                 embed=embed_templates.error_warning(self.MSG_NO_DATA), ephemeral=False
             )
 
-        self.word_freq_cache.pop(f"{interaction.user.id}", None)
+        self.word_freq_cache.pop(interaction.user.id, None)
 
         try:
             self.cursor.execute(
