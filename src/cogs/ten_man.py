@@ -80,9 +80,9 @@ class TenMan(commands.Cog):
         )
         embed.set_author(name=interaction.user.global_name, icon_url=interaction.user.avatar)
         embed.add_field(name="Spillere", value=f"* {interaction.user.mention}", inline=False)
-        await interaction.response.send_message(
-            embed=embed, view=TenManView(self.active_lobbies[str(interaction.user.id)], self.bot)
-        )
+        view = TenManView(self.active_lobbies[str(interaction.user.id)], self.bot)
+        await interaction.response.send_message(embed=embed, view=view)
+        view.message = await interaction.original_response()
 
 
 class TenManView(LobbyView):
@@ -107,7 +107,9 @@ class TenManView(LobbyView):
         await interaction.message.edit(embed=embed, view=self)
 
         embed = discord.Embed(title="10 Man Lobby - Velg lagledere")
-        await interaction.response.send_message(embed=embed, view=TeamLeaderView(self.lobby, self.bot))
+        view = TeamLeaderView(self.lobby, self.bot)
+        await interaction.response.send_message(embed=embed, view=view)
+        view.message = await interaction.original_response()
 
 
 # ------------------------------------------------------------------------------
@@ -118,12 +120,18 @@ class TeamLeaderView(discord.ui.View):
         super().__init__(timeout=15)
         self.lobby = lobby
         self.bot = bot
+        self.message: discord.Message | None = None
 
         self.add_item(TeamLeaderSelectMenu(self))
 
     async def on_timeout(self):
         self.bot.logger.info("TeamLeaderView timed out")
         self.disable_interaction()
+        if self.message:
+            try:
+                await self.message.edit(view=self)
+            except discord.NotFound:
+                pass
 
     def disable_interaction(self):
         self.bot.logger.info("TeamLeaderView disabled")
@@ -169,9 +177,9 @@ class TeamLeaderSelectMenu(discord.ui.Select):
         embed.description = f"Det er {team_leaders[turn].mention} sin tur"
         embed.add_field(name="Lag 1", value=f"* {team_leaders[0].mention}", inline=False)
         embed.add_field(name="Lag 2", value=f"* {team_leaders[1].mention}", inline=False)
-        await interaction.response.send_message(
-            embed=embed, view=TeamSelectView(self.parent_view.lobby, self.parent_view.bot, team_leaders, turn)
-        )
+        view = TeamSelectView(self.parent_view.lobby, self.parent_view.bot, team_leaders, turn)
+        await interaction.response.send_message(embed=embed, view=view)
+        view.message = await interaction.original_response()
 
 
 # ------------------------------------------------------------------------------
@@ -185,12 +193,18 @@ class TeamSelectView(discord.ui.View):
         self.players = [p for p in self.lobby.players if p not in team_leaders]
         self.teams = [[team_leaders[0]], [team_leaders[1]]]
         self.turn = turn
+        self.message: discord.Message | None = None
 
         self.add_item(TeamSelectMenu(self))
 
     async def on_timeout(self):
         self.bot.logger.info("TeamSelectView timed out")
         self.disable_interaction()
+        if self.message:
+            try:
+                await self.message.edit(view=self)
+            except discord.NotFound:
+                pass
 
     def disable_interaction(self):
         self.bot.logger.info("TeamSelectView disabled")

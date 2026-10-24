@@ -74,9 +74,9 @@ class CS2Bingo(commands.Cog):
         )
         embed.set_author(name=interaction.user.global_name, icon_url=interaction.user.avatar)
         embed.add_field(name="Spillere", value=f"* {interaction.user.mention}", inline=False)
-        await interaction.response.send_message(
-            embed=embed, view=BingoView(self.active_lobbies[str(interaction.user.id)], self.bot)
-        )
+        view = BingoView(self.active_lobbies[str(interaction.user.id)], self.bot)
+        await interaction.response.send_message(embed=embed, view=view)
+        view.message = await interaction.original_response()
 
 
 class BingoGenerator:

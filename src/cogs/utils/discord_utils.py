@@ -206,11 +206,17 @@ class LobbyView(discord.ui.View):
 
         self.lobby = lobby
         self.bot = bot
+        self.message: discord.Message | None = None
 
         self.add_item(_KickSelectMenu(self))
 
     async def on_timeout(self):
         await self.end_lobby()
+        if self.message:
+            try:
+                await self.message.edit(view=self)
+            except discord.NotFound:
+                pass
 
     async def end_lobby(self):
         self.lobby.ends = datetime.now()
