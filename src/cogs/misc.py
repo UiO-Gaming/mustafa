@@ -162,7 +162,12 @@ class Misc(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 2)
     @app_commands.command(name="mock", description="vEt dU iKkE hVa mOcKtEkSt eR eLlEr?")
-    async def mock(self, interation: discord.Interaction, tekst: str, bruker: discord.User | None = None):
+    async def mock(
+        self,
+        interation: discord.Interaction,
+        tekst: app_commands.Range[str, 1, 4096],
+        bruker: discord.User | None = None,
+    ):
         """
         dO i rEaLlY nEeD tO eXpLaIn??
 
@@ -195,7 +200,9 @@ class Misc(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @app_commands.command(name="helligdager", description="Se helligdager i et land for et år")
-    async def holidays(self, interaction: discord.Interaction, *, land: str = "NO", år: int = None):
+    async def holidays(
+        self, interaction: discord.Interaction, *, land: app_commands.Range[str, 2, 2] = "NO", år: int = None
+    ):
         """
         Get holidays for a country for a given year
 

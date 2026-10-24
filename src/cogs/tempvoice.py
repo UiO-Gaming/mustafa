@@ -31,7 +31,12 @@ class TempVoice(commands.Cog):
     @app_commands.checks.bot_has_permissions(manage_channels=True, embed_links=True)
     @app_commands.checks.cooldown(1, 300)
     @app_commands.command(name="tempvoice")
-    async def tempvoice(self, interaction: discord.Interaction, name: str, limit: int = 0):
+    async def tempvoice(
+        self,
+        interaction: discord.Interaction,
+        name: app_commands.Range[str, 1, 100],
+        limit: app_commands.Range[int, 0, 99] = 0,
+    ):
         """
         Create a temporary voice channel
 
@@ -39,7 +44,7 @@ class TempVoice(commands.Cog):
         ----------
         interaction (discord.Interaction): The interaction object
         name (str): The name of the channel
-        limit (int): The user limit of the channel
+        limit (int): The user limit of the channel. 0 means no limit
         """
 
         channel = await self.temp_voice_helper.create_temp_voice(interaction, name, limit)

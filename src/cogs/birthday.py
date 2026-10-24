@@ -238,7 +238,13 @@ class Birthday(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @birthday_group.command(name="sett", description="Lagrer din bursdag i databasen")
-    async def birthday_set(self, interaction: discord.Interaction, dag: int, måned: int, år: int):
+    async def birthday_set(
+        self,
+        interaction: discord.Interaction,
+        dag: app_commands.Range[int, 1, 31],
+        måned: app_commands.Range[int, 1, 12],
+        år: int,
+    ):
         """
         Allows the user to set their birthday in the database.
 
