@@ -40,6 +40,8 @@ class SocialCredit(commands.Cog):
         self.fuck_uwu.start()
 
         self.START_POINTS = 1000
+        self.STAR_THRESHOLD = 3
+        self.POINTS_PER_STAR = 25
         self.cursor = self.bot.db_connection.cursor()
         self.init_db()
 
@@ -397,26 +399,31 @@ class SocialCredit(commands.Cog):
         if user.bot:
             return
 
-        if reaction.emoji == "⭐":
-            if reaction.message.author == user:
-                await self.social_punishment(user.id, 100, "self-star")
-            elif reaction.count == 3:
-                await self.social_punishment(
-                    user.id, (len(reaction.message.reactions) - 1) * 25, "remove already accumulated stars"
-                )
-                await self.social_reward(user.id, 25 * len(reaction.message.reactions), "add new stars")
+        if reaction.emoji != "⭐":
+            return
+
+        author = reaction.message.author
+        if author == user:
+            await self.social_punishment(user.id, 100, "self-star")
+        elif reaction.count == self.STAR_THRESHOLD:
+            await self.social_reward(author.id, self.STAR_THRESHOLD * self.POINTS_PER_STAR, "starred")
+        elif reaction.count > self.STAR_THRESHOLD:
+            await self.social_reward(author.id, self.POINTS_PER_STAR, "add star")
 
     @commands.Cog.listener("on_reaction_remove")
     async def on_star_remove(self, reaction: discord.Reaction, user: discord.User | discord.Member):
         """
-        Deducts points who have a star reaction removed from their message
+        Deducts points from users who have a star reaction removed from their message
         """
 
-        if user.bot:
+        if user.bot or reaction.emoji != "⭐" or reaction.message.author == user:
             return
 
-        if reaction.emoji == "⭐" and reaction.count >= 3:
-            await self.social_punishment(user.id, 25, "remove star")
+        author = reaction.message.author
+        if reaction.count == self.STAR_THRESHOLD - 1:
+            await self.social_punishment(author.id, self.STAR_THRESHOLD * self.POINTS_PER_STAR, "unstarred")
+        elif reaction.count >= self.STAR_THRESHOLD:
+            await self.social_punishment(author.id, self.POINTS_PER_STAR, "remove star")
 
 
 async def setup(bot: commands.Bot):
