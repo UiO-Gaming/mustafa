@@ -221,7 +221,7 @@ class Meme(commands.Cog):
 
         # AAAAAAAAAAAAAAA MY EYES
         if "entries" in info:
-            info = info["entries"][0]
+            info = info["entries"][0] if info["entries"] else None
         if not info or not info.get("duration") or info.get("duration") > max_seconds:
             return await interaction.followup.send(
                 embed=embed_templates.error_warning(
@@ -249,15 +249,16 @@ class Meme(commands.Cog):
             self.bot.logger.info(f"Successfully created nightcorified song at {nightcored}")
         except subprocess.CalledProcessError as e:
             self.bot.logger.error(f"Error during conversion: {e}")
-
-        try:
-            await interaction.followup.send(file=discord.File(nightcored))
-        except discord.errors.HTTPException:
-            self.bot.logger.warning(f"Failed to send temporary file {nightcored}")
-            await interaction.followup.send(
-                embed=embed_templates.error_warning("Failed to send file. It is probably too big."),
-                ephemeral=True,
-            )
+            await interaction.followup.send(embed=embed_templates.error_fatal("Klarte ikke å nightcore sangen!"))
+        else:
+            try:
+                await interaction.followup.send(file=discord.File(nightcored))
+            except discord.errors.HTTPException:
+                self.bot.logger.warning(f"Failed to send temporary file {nightcored}")
+                await interaction.followup.send(
+                    embed=embed_templates.error_warning("Failed to send file. It is probably too big."),
+                    ephemeral=True,
+                )
 
         for temp_file in (nightcored, f"{pre_nightcored}.mp3"):
             try:
