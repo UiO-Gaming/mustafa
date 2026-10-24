@@ -262,7 +262,9 @@ class Info(commands.Cog):
 
         # IF roles list is longer than 2048, create text file and send it
         if len(roles) > 2048:
-            await discord_utils.send_as_txt_file(interaction, roles, f"./assets/temp/{interaction.guild.id}_roles.txt")
+            await discord_utils.send_as_txt_file(
+                interaction, roles, f"./src/assets/temp/{interaction.guild.id}_roles.txt"
+            )
         else:
             embed = discord.Embed(color=interaction.guild.me.color, description=roles)
             embed.set_author(name=f"Roller ({len(interaction.guild.roles)})", icon_url=interaction.guild.icon)
@@ -754,7 +756,7 @@ class Info(commands.Cog):
         # If the list of roles is too long, send it as a file
         if len(roles) > 2048:
             await discord_utils.send_as_txt_file(
-                interaction, roles, f"./assets/temp/{interaction.guild.id}_{interaction.user.id}_roles.txt"
+                interaction, roles, f"./src/assets/temp/{interaction.guild.id}_{interaction.user.id}_roles.txt"
             )
         else:
             embed = discord.Embed(color=bruker.color, description=roles)
@@ -786,7 +788,7 @@ class Info(commands.Cog):
         # If the list of roles is too long, send it as a file
         if len(roles) > 2048:
             await discord_utils.send_as_txt_file(
-                interaction, roles, f"./assets/temp/{interaction.guild.id}_{interaction.user.id}_missing_roles.txt"
+                interaction, roles, f"./src/assets/temp/{interaction.guild.id}_{interaction.user.id}_missing_roles.txt"
             )
         else:
             embed = discord.Embed(color=bruker.color, description=roles)
