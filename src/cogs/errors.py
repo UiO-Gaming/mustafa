@@ -141,6 +141,7 @@ class Errors(commands.Cog):
         # Log command usage, just in case
         await self.on_app_command_completion(interaction, interaction.command)
 
+        files = []
         if isinstance(error, app_commands.BotMissingPermissions):
             embed = self.error_missing_perms(error.missing_permissions, "Jeg")
         elif isinstance(error, app_commands.MissingPermissions):
@@ -151,17 +152,11 @@ class Errors(commands.Cog):
             )
         else:
             embed = embed_templates.error_fatal("En ukjent feil oppstod!")
-            f = discord.File("./src/assets/edb.png")
+            files.append(discord.File("./src/assets/edb.png"))
             embed.set_image(url="attachment://edb.png")
 
-        # Yeah, this fucking sucks but I want my beautiful edb picture :_;
         try:
-            f
-        except NameError:
-            f = None
-
-        try:
-            await interaction.followup.send(embed=embed, file=f)
+            await interaction.followup.send(embed=embed, files=files)
         except discord.errors.Forbidden:
             self.bot.logger.warning("Could not send error message to user")
         except app_commands.BotMissingPermissions:
