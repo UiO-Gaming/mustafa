@@ -65,9 +65,7 @@ class SocialCredit(commands.Cog):
 
         async def wrapper(*args, **kwargs):
             self = args[0]
-            self.cursor.execute("SELECT user_id FROM social_credit WHERE user_id = %s", (args[1],))
-            if not self.cursor.fetchone():
-                self.add_citizen(args[1])
+            self.add_citizen(args[1])
             await func(*args, **kwargs)
 
         return wrapper
@@ -88,7 +86,7 @@ class SocialCredit(commands.Cog):
 
     def add_citizen(self, user_id: int):
         """
-        Adds a user to the database
+        Adds a user to the database if they aren't already in it
 
         Parameters
         ----------
@@ -100,6 +98,7 @@ class SocialCredit(commands.Cog):
             INSERT INTO social_credit
             (user_id, credit_score)
             VALUES (%s, %s)
+            ON CONFLICT (user_id) DO NOTHING
             """,
             (user_id, self.START_POINTS),
         )

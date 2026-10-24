@@ -3,7 +3,6 @@ import random
 from datetime import datetime
 
 import discord
-import psycopg2
 from dateutil.relativedelta import relativedelta
 from discord import app_commands
 from discord.ext import commands
@@ -223,17 +222,14 @@ class Birthday(commands.Cog):
         birthday (datetime): The birthday of the user
         """
 
-        try:
-            self.cursor.execute(
-                """
-                INSERT INTO birthdays (discord_id, birthday)
-                VALUES (%s, %s)
-                """,
-                (user_id, birthday),
-            )
-        except psycopg2.errors.UniqueViolation:
-            self.bot.db_connection.rollback()
-            self.cursor.execute("UPDATE birthdays SET birthday = %s WHERE discord_id = %s", (birthday, user_id))
+        self.cursor.execute(
+            """
+            INSERT INTO birthdays (discord_id, birthday)
+            VALUES (%s, %s)
+            ON CONFLICT (discord_id) DO UPDATE SET birthday = EXCLUDED.birthday
+            """,
+            (user_id, birthday),
+        )
 
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
