@@ -393,6 +393,8 @@ class TempVoiceHelper:
             if (datetime.now() - data["no_members_since"]).total_seconds() >= 60:
                 try:
                     await channel.delete(reason="tempvoice kanal inaktiv i 1 minutt")
+                except discord.NotFound:
+                    self.bot.logger.info(f"Temporary voice channel {channel} was already deleted")
                 except discord.Forbidden:
                     self.bot.logger.info(f"Failed to delete temporary voice channel {channel}")
                 else:
