@@ -85,13 +85,21 @@ class MCWhitelist(commands.Cog):
         # Also unfortunate, we seemingly need to wrap the context manager like this to catch any exceptions
         try:
             with MCRcon(host="127.0.0.1", password=self.bot.mc_rcon_password, port=25575) as mcr:
-                mcr.command(f'whitelist add {data["id"]}')
+                response = mcr.command(f'whitelist add {data["id"]}')
                 mcr.command("whitelist reload")
         except Exception as e:
             self.bot.logger.error(f"Failed to use RCON: {e}")
             return await interaction.response.send_message(
                 embed=embed_templates.error_fatal(
                     "Klarte ikke å koble til minecraftserveren. Ta kontakt med din lokale teknisk ansvarlige",
+                )
+            )
+
+        if not response.startswith(("Added", "Player is already whitelisted")):
+            self.bot.logger.error(f"Minecraft server rejected whitelisting {data['name']}: {response}")
+            return await interaction.response.send_message(
+                embed=embed_templates.error_fatal(
+                    "Minecraftserveren godtok ikke brukeren. Ta kontakt med din lokale teknisk ansvarlige",
                 )
             )
 
@@ -142,13 +150,21 @@ class MCWhitelist(commands.Cog):
         # Also unfortunate, we seemingly need to wrap the context manager like this to catch any exceptions
         try:
             with MCRcon(host="127.0.0.1", password=self.bot.mc_rcon_password, port=25575) as mcr:
-                mcr.command(f"whitelist remove {mc_id}")
+                response = mcr.command(f"whitelist remove {mc_id}")
                 mcr.command("whitelist reload")
         except Exception as e:
             self.bot.logger.error(f"Failed to use RCON: {e}")
             return await interaction.response.send_message(
                 embed=embed_templates.error_fatal(
                     "Klarte ikke å koble til minecraftserveren. Ta kontakt med din lokale teknisk ansvarlige",
+                )
+            )
+
+        if not response.startswith(("Removed", "Player is not whitelisted")):
+            self.bot.logger.error(f"Minecraft server rejected removing {mc_id} from the whitelist: {response}")
+            return await interaction.response.send_message(
+                embed=embed_templates.error_fatal(
+                    "Minecraftserveren klarte ikke å fjerne brukeren. Ta kontakt med din lokale teknisk ansvarlige",
                 )
             )
 
