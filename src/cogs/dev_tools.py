@@ -256,19 +256,10 @@ class DevTools(commands.Cog):
         ctx (commands.Context): Context object
         """
 
-        # Unload all cogs
-        for file in listdir("./src/cogs"):
-            if file.endswith(".py"):
-                name = file[:-3]
-                await self.bot.unload_extension(f"cogs.{name}")
+        extensions = [f"cogs.{file[:-3]}" for file in listdir("./src/cogs") if file.endswith(".py")]
+        failed = await self.reload_extensions(extensions)
 
-        # Load all cogs
-        for file in listdir("./src/cogs"):
-            if file.endswith(".py"):
-                name = file[:-3]
-                await self.bot.load_extension(f"cogs.{name}")
-
-        embed = discord.Embed(color=ctx.me.color, description="Reloaded all cogs")
+        embed = discord.Embed(color=ctx.me.color, description=self.reload_summary("Reloaded all cogs", failed))
         await ctx.reply(embed=embed)
 
     @cogs.command(name="reloadall", description="Last inn alle cogs på nytt")
@@ -281,13 +272,56 @@ class DevTools(commands.Cog):
         ctx (commands.Context): Context object
         """
 
-        for file in listdir("./src/cogs"):
-            if file.endswith(".py"):
-                name = file[:-3]
-                await self.bot.reload_extension(f"cogs.{name}")
+        failed = await self.reload_extensions(list(self.bot.extensions))
 
-        embed = discord.Embed(color=ctx.me.color, description="Reloaded all previously enabled cogs")
+        embed = discord.Embed(
+            color=ctx.me.color, description=self.reload_summary("Reloaded all previously enabled cogs", failed)
+        )
         await ctx.reply(embed=embed)
+
+    async def reload_extensions(self, extensions: list[str]) -> dict[str, Exception]:
+        """
+        Reloads the given extensions, loading the ones that aren't loaded yet
+
+        Parameters
+        ----------
+        extensions (list[str]): Names of the extensions to reload
+
+        Returns
+        ----------
+        (dict[str, Exception]): The extensions that failed and why
+        """
+
+        failed = {}
+        for extension in extensions:
+            try:
+                if extension in self.bot.extensions:
+                    await self.bot.reload_extension(extension)
+                else:
+                    await self.bot.load_extension(extension)
+            except commands.ExtensionError as e:
+                self.bot.logger.error(f"Failed to reload {extension}: {e}")
+                failed[extension] = e
+        return failed
+
+    def reload_summary(self, message: str, failed: dict[str, Exception]) -> str:
+        """
+        Builds the reply for the reload commands
+
+        Parameters
+        ----------
+        message (str): The message to show when everything was reloaded
+        failed (dict[str, Exception]): The extensions that failed and why
+
+        Returns
+        ----------
+        (str): The reply text
+        """
+
+        if not failed:
+            return message
+        failures = "\n".join(f"* `{extension}`: {type(e.__cause__ or e).__name__}" for extension, e in failed.items())
+        return f"{message}, except:\n{failures}"
 
 
 async def setup(bot: commands.Bot):
