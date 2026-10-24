@@ -23,7 +23,7 @@ class StarboardScraper(commands.Cog):
         """
 
         self.bot = bot
-        self.starboard_channel_id = 757614289812193280
+        self.starboard_channel_id = self.bot.channel_ids.get("starboard")
 
         self.cursor = self.bot.db_connection.cursor()
         self.init_db()

@@ -417,7 +417,7 @@ class TempVoiceHelper:
 
         # Get the UiO Gaming server's VC category. If the command is not invoked in that server it should still be fine
         # since the it will return None if not found.
-        vc_category = interaction.guild.get_channel(747542544291987601)
+        vc_category = interaction.guild.get_channel(self.bot.channel_ids.get("voice_category"))
 
         try:
             channel = await interaction.guild.create_voice_channel(

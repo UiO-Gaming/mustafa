@@ -120,7 +120,7 @@ class SocialCredit(commands.Cog):
                 + "If it is, ignore this."
             )
             return
-        if not (weeb_role := guild.get_role(803629993539403826)):
+        if not (weeb_role := guild.get_role(self.bot.role_ids.get("weeb"))):
             self.bot.logger.warning(
                 "Could not fetch UiO Gaming's weeb role."
                 + "If the bot does not have access to the UiO Gaming server, this function won't work. "
@@ -288,7 +288,7 @@ class SocialCredit(commands.Cog):
         message (discord.Message): The message object
         """
 
-        if message.channel.id == 754706204349038644:
+        if message.channel.id == self.bot.channel_ids.get("politics"):
             await self.social_punishment(message.author.id, 25, "politics")
 
     @roll(percent=25)
@@ -301,7 +301,7 @@ class SocialCredit(commands.Cog):
         message (discord.Message): The message object
         """
 
-        if message.channel.id == 811606213665357824:
+        if message.channel.id == self.bot.channel_ids.get("member_chat"):
             await self.social_reward(message.author.id, 10, "member-chat")
 
     @roll(percent=50)
@@ -381,7 +381,7 @@ class SocialCredit(commands.Cog):
         """
 
         # This only works in the UiO Gaming server as well
-        if message.channel.id == 865970753748074576 and message.mentions:
+        if message.channel.id == self.bot.channel_ids.get("gullkorn") and message.mentions:
             for mention in message.mentions:
                 await self.social_punishment(mention.id, 10, "gullkorn")
 

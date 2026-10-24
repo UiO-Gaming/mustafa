@@ -77,7 +77,7 @@ class Gullkorn(commands.Cog):
         message (discord.Message): Message object to check for triggers to
         """
 
-        if message.author.bot or message.channel.id != 865970753748074576 or not message.mentions:
+        if message.author.bot or message.channel.id != self.bot.channel_ids.get("gullkorn") or not message.mentions:
             return
 
         for user in message.mentions:

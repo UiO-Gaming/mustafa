@@ -92,7 +92,7 @@ class Misc(commands.Cog):
             bruker = interaction.user
 
         # Må jo gi meg selv en stor kuk
-        if bruker.id == 170506717140877312:
+        if bruker.id == self.bot.user_ids.get("dev"):
             dick_size = 69
         elif bruker.id == 327207142681608192:
             dick_size = 1

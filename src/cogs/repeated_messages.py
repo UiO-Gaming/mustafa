@@ -1,6 +1,7 @@
 import random
 from datetime import datetime
 
+import discord
 from discord.ext import commands
 from discord.ext import tasks
 
@@ -12,7 +13,6 @@ class RepeatedMessages(commands.Cog):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.general_channel = 747542544291987597
 
         # self.fredag.start()
         # self.mandag.start()
@@ -22,6 +22,17 @@ class RepeatedMessages(commands.Cog):
         # self.fredag.cancel()
         # self.mandag.cancel()
         self.new_year.cancel()
+
+    def get_general_channel(self) -> discord.TextChannel | None:
+        """
+        Returns
+        ----------
+        (discord.TextChannel | None): The channel to post repeated messages in. None if it can't be found
+        """
+
+        if not (channel := self.bot.get_channel(self.bot.channel_ids.get("general"))):
+            self.bot.logger.warning("Could not find the general channel. Check ids.channels.general in the config")
+        return channel
 
     @tasks.loop(time=misc_utils.MIDNIGHT)
     @misc_utils.log_errors
@@ -33,8 +44,8 @@ class RepeatedMessages(commands.Cog):
         if datetime.now().weekday() != 4:
             return
 
-        guild = self.bot.get_guild(self.bot.UIO_GAMING_GUILD_ID)
-        channel = guild.get_channel(self.general_channel)
+        if not (channel := self.get_general_channel()):
+            return
 
         videos = [
             "https://cdn.discordapp.com/attachments/750052141346979850/851216786259181578/video0.mp4",
@@ -64,8 +75,8 @@ class RepeatedMessages(commands.Cog):
         """
         if datetime.now().weekday() != 0:
             return
-        guild = self.bot.get_guild(self.bot.UIO_GAMING_GUILD_ID)
-        channel = guild.get_channel(self.general_channel)
+        if not (channel := self.get_general_channel()):
+            return
         await channel.send(
             "ENDELIG MANDAG!\n\n"
             + "https://cdn.discordapp.com/attachments/678396498089738250/1168644637687283762/Snapchat-1787493720.mp4"  # noqa: E501
@@ -82,8 +93,8 @@ class RepeatedMessages(commands.Cog):
         if datetime.now().month != 1 or datetime.now().day != 1:
             return
 
-        guild = self.bot.get_guild(self.bot.UIO_GAMING_GUILD_ID)
-        channel = guild.get_channel(self.general_channel)
+        if not (channel := self.get_general_channel()):
+            return
         await channel.send("GODT NYTTÅR!\n\nNå, meld dere inn i UiO Gaming igjen <:ThisIsAThreat:874998234072903710>")
 
 

@@ -24,7 +24,6 @@ class Aurora(commands.Cog):
 
         self.notified = datetime(2000, 9, 11)  # Used to prevent spamming aurora alerts
         self.aurora_alarm.start()
-        self.AURORA_CHANNEL = 747542544291987599
 
     def cog_unload(self):
         self.bot.logger.info("Unloading cog")
@@ -91,7 +90,7 @@ class Aurora(commands.Cog):
             self.bot.logger.info("aurora_alarm: Fetch forecast")
             return
 
-        channel = self.bot.get_channel(self.AURORA_CHANNEL)
+        channel = self.bot.get_channel(self.bot.channel_ids.get("aurora"))
         if not channel:
             self.bot.logger.warning("aurora_alarm: Failed to get aurora channel")
             return

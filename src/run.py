@@ -11,7 +11,6 @@ from discord.ext import commands
 
 from logger import BotLogger
 
-UIO_GAMING_GUILD_ID = 747542543750660178
 DATABASE_RELIANT_COGS = {
     "birthday.py",
     "gullkorn.py",
@@ -67,7 +66,11 @@ class Bot(commands.Bot):
             self.mc_rcon_password = config["minecraft"]["rcon_password"]
 
         # Fetch misc config values
-        self.UIO_GAMING_GUILD_ID = UIO_GAMING_GUILD_ID
+        ids = config.get("ids") or {}
+        self.UIO_GAMING_GUILD_ID = ids.get("guild")
+        self.channel_ids = ids.get("channels") or {}
+        self.role_ids = ids.get("roles") or {}
+        self.user_ids = ids.get("users") or {}
         self.guild_id = config.get("dev_guild", self.UIO_GAMING_GUILD_ID)
         self.config_mode = config.get("config_mode")
         self.presence = config["bot"].get("presence", {})

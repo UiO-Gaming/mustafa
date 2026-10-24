@@ -78,7 +78,10 @@ class Birthday(commands.Cog):
             return
 
         guild = self.bot.get_guild(self.bot.UIO_GAMING_GUILD_ID)
-        channel = guild.get_channel(747542544291987597)
+        channel = guild.get_channel(self.bot.channel_ids.get("general")) if guild else None
+        if not channel:
+            self.bot.logger.warning("Could not find the general channel. Check ids.guild and ids.channels.general")
+            return
         for birthday in birthdays:
             try:
                 user = await guild.fetch_member(birthday[0])
@@ -118,7 +121,7 @@ class Birthday(commands.Cog):
                     + "bare har 1% sjanse å få!!!!\nhttps://youtu.be/mOyDlnvZwcg"
                 )
 
-            if user.id == 170506717140877312:
+            if user.id == self.bot.user_ids.get("dev"):
                 message = (
                     f"Ett steg nærmere døden i dag broder,,, Iskjhe bra,,, {user.mention}\n\n"
                     + "https://youtu.be/9Fr3oLZnmvc"

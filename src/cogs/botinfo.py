@@ -34,7 +34,10 @@ class BotInfo(commands.Cog):
         """
 
         # Dev user info
-        dev = await self.bot.fetch_user(170506717140877312)
+        if dev_id := self.bot.user_ids.get("dev"):
+            dev = await self.bot.fetch_user(dev_id)
+        else:
+            dev = (await self.bot.application_info()).owner
 
         # Memory usage
         process = Process(getpid())

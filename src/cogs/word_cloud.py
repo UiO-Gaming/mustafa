@@ -498,7 +498,7 @@ class WordCloud(commands.Cog):
 
         # Get member role for future channel permission checking
         # This shouldn't be hard coded but eh
-        board_member_role = interaction.guild.get_role(779849617651138601)
+        board_member_role = interaction.guild.get_role(self.bot.role_ids.get("board_member"))
 
         # This is horrible but there's a lot of edge cases to handle so spare me pls
         all_messages = ""

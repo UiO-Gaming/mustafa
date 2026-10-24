@@ -5,6 +5,23 @@ dev_guild: 747542543750660178
 # IANA timezone name. Leave empty to use the system's timezone
 timezone: Europe/Oslo
 
+# Discord IDs the bot's features rely on. Features whose ID is missing are skipped
+ids:
+  guild: 747542543750660178
+  channels:
+    general: 747542544291987597
+    aurora: 747542544291987599
+    gullkorn: 865970753748074576
+    politics: 754706204349038644
+    member_chat: 811606213665357824
+    starboard: 757614289812193280
+    voice_category: 747542544291987601
+  roles:
+    weeb: 803629993539403826
+    board_member: 779849617651138601
+  users:
+    dev: 170506717140877312
+
 # Bot settings
 bot:
   token:
