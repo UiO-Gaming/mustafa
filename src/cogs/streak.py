@@ -62,7 +62,7 @@ class Streak(commands.Cog):
         """
 
         streaks = await self.bot.db.fetchall("""
-            SELECT *
+            SELECT discord_id, streak_start_id, streak_start_time::timestamptz, latest_post_time::timestamptz
             FROM streak;
             """)
 
@@ -86,9 +86,19 @@ class Streak(commands.Cog):
         if message.author.bot:
             return
 
-        # Cache message stuff
-        if message.author.id in self.streak_cache:
-            self.streak_cache[message.author.id]["latest_post_time"] = message.created_at
+        self.record_message(message)
+
+    def record_message(self, message: discord.Message):
+        """
+        Count a message towards its author's streak
+
+        Parameters
+        ----------
+        message (discord.Message): The message
+        """
+
+        if streak := self.streak_cache.get(message.author.id):
+            streak["latest_post_time"] = max(streak["latest_post_time"], message.created_at)
         else:
             self.streak_cache[message.author.id] = {
                 "first_post_id": f"{message.channel.id}-{message.id}",
@@ -104,6 +114,36 @@ class Streak(commands.Cog):
         """
 
         await self.insert_cache()
+
+    @insert_cache_loop.before_loop
+    async def catch_up_on_missed_messages(self):
+        """
+        Count messages sent while the bot was offline, so streaks aren't lost because of downtime.
+        A streak survives the midnight check if its latest post is less than a day old,
+        so only messages since the last midnight can make a difference
+        """
+
+        await self.bot.wait_until_ready()
+
+        since = datetime.now().astimezone(self.bot.timezone).replace(hour=0, minute=0, second=0, microsecond=0)
+        counted = 0
+        for guild in self.bot.guilds:
+            channels = [c for c in guild.channels if isinstance(c, discord.abc.Messageable)] + list(guild.threads)
+            for channel in channels:
+                if not channel.permissions_for(guild.me).read_message_history:
+                    continue
+
+                try:
+                    async for message in channel.history(limit=None, after=since):
+                        if not message.author.bot:
+                            self.record_message(message)
+                            counted += 1
+                except discord.HTTPException as e:
+                    self.bot.logger.warning(
+                        f"Could not read the history of {channel} while catching up on streaks: {e}"
+                    )
+
+        self.bot.logger.info(f"Counted {counted} messages since {since} towards streaks")
 
     async def insert_cache(self):
         """
