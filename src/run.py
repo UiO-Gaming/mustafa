@@ -1,3 +1,5 @@
+import asyncio
+import signal
 from os import listdir
 from time import time
 
@@ -72,6 +74,12 @@ class Bot(commands.Bot):
         self.misc = config.get("misc", {})
 
     async def setup_hook(self):
+        # Docker stops the container with SIGTERM. Close gracefully so cogs can save their caches
+        try:
+            asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, lambda: asyncio.create_task(self.close()))
+        except NotImplementedError:
+            pass  # Not supported on Windows
+
         # Load cogs
         for file in self.cog_files:
             if file.endswith(".py"):
