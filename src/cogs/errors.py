@@ -79,7 +79,7 @@ class Errors(commands.Cog):
         error = getattr(error, "original", error)
 
         # Ignored errors
-        ignored_errors = (commands.CommandNotFound, commands.DisabledCommand, commands.CheckFailure)
+        ignored_errors = (commands.CommandNotFound, commands.DisabledCommand)
         if isinstance(error, ignored_errors):
             self.bot.logger.info("Ignored error", error)
             return
@@ -101,6 +101,8 @@ class Errors(commands.Cog):
             )
         elif isinstance(error, commands.NoPrivateMessage):
             embed = embed_templates.error_warning("Denne kommandoen kan bare utføres it servere")
+        elif isinstance(error, commands.CheckFailure):
+            return
         else:
             embed = embed_templates.error_fatal("En ukjent feil oppstod!")
             f = discord.File("./src/assets/edb.png")
