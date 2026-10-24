@@ -1,6 +1,6 @@
 from datetime import datetime
 from datetime import timedelta
-from zoneinfo import ZoneInfo
+from datetime import timezone
 
 import discord
 import requests
@@ -42,13 +42,14 @@ class Aurora(commands.Cog):
             self.bot.logger.warning("Failed to get forecast data")
             return None
 
+        now = datetime.now(timezone.utc)
         valid_sightings = []
         for interval in data["shortIntervals"]:
-            # Convert to datetime objects, convert timezone to utc and strip timezone info
-            start = datetime.fromisoformat(interval["start"]).astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+            start = datetime.fromisoformat(interval["start"])
+            end = datetime.fromisoformat(interval["end"])
 
-            # If sighting is not in within the next 12 hours ignore
-            if (start - datetime.now()) > timedelta(hours=12):
+            # Ignore sightings that have already ended or are more than 12 hours away
+            if end <= now or start - now > timedelta(hours=12):
                 continue
 
             if (
