@@ -2,7 +2,6 @@ import re
 from datetime import datetime
 
 import discord
-import requests
 from discord import app_commands
 from discord.ext import commands
 
@@ -19,6 +18,7 @@ class Anime(commands.Cog):
         bot (commands.Bot): The bot instance
         """
 
+        self.bot = bot
         self.anilist_logo = "https://anilist.co/img/logo_al.png"
 
     anilist = app_commands.Group(name="anilist", description="Hent informasjon fra Anilist")
@@ -221,8 +221,8 @@ class Anime(commands.Cog):
 
         try:
             url = "https://graphql.anilist.co"
-            response = requests.post(url, json={"query": query, "variables": variables}, timeout=10)
-            response = response.json()
+            async with self.bot.http_session.post(url, json={"query": query, "variables": variables}) as response:
+                response = await response.json(content_type=None)
             data = response["data"][key]
             url = data["siteUrl"]
         except TypeError:
@@ -1182,9 +1182,10 @@ class Anime(commands.Cog):
                 }
                 }
             """
-        data = requests.post(
-            "https://graphql.anilist.co", json={"query": query2, "variables": variables}, timeout=10
-        ).json()
+        async with self.bot.http_session.post(
+            "https://graphql.anilist.co", json={"query": query2, "variables": variables}
+        ) as response:
+            data = await response.json(content_type=None)
         data = data["data"]["Studio"]
 
         recent_media = []

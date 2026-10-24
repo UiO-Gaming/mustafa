@@ -4,6 +4,7 @@ from os import listdir
 from time import time
 from zoneinfo import ZoneInfo
 
+import aiohttp
 import discord
 import psycopg2
 import yaml
@@ -79,6 +80,8 @@ class Bot(commands.Bot):
         self.timezone = ZoneInfo(tz) if (tz := config.get("timezone")) else None  # None means the system timezone
 
     async def setup_hook(self):
+        self.http_session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15))
+
         # Docker stops the container with SIGTERM. Close gracefully so cogs can save their caches
         try:
             asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, lambda: asyncio.create_task(self.close()))
@@ -97,6 +100,11 @@ class Bot(commands.Bot):
         else:
             self.tree.copy_global_to(guild=discord.Object(id=self.guild_id))
             await self.tree.sync(guild=discord.Object(id=self.guild_id))
+
+    async def close(self):
+        await super().close()
+        if hasattr(self, "http_session"):
+            await self.http_session.close()
 
     def check_credentials(self, credentials: dict, dependant_cogs: set[str]) -> bool:
         """

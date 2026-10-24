@@ -1,7 +1,6 @@
 from datetime import datetime
 
 import discord
-import requests
 from discord import app_commands
 from discord.ext import commands
 
@@ -19,6 +18,30 @@ class Galtinn(commands.Cog):
         """
 
         self.bot = bot
+
+    async def request_users(self, params: dict) -> dict | None:
+        """
+        Looks up users in the Galtinn API
+
+        Parameters
+        ----------
+        params (dict): Query parameters to filter users by. Parameters set to None are left out
+
+        Returns
+        ----------
+        (dict | None): The API response. None if the request failed
+        """
+
+        params = {key: value for key, value in params.items() if value is not None} | {"format": "json"}
+        async with self.bot.http_session.get(
+            f"{self.bot.galtinn['api_url']}/users/",
+            params=params,
+            headers={"Authorization": f"Token {self.bot.galtinn['auth_token']}"},
+        ) as response:
+            if response.status == 200 and (data := await response.json(content_type=None)):
+                return data
+            self.bot.logger.error(f"Galtinn API request failed: {response.status} - {await response.text()}")
+            return None
 
     galtinn_group = app_commands.Group(
         name="galtinn", description="Kommandoer for Galtinn - Medlemsdatabasen til Det Norske Studentersamfund"
@@ -47,16 +70,9 @@ class Galtinn(commands.Cog):
         # Check if the user has registered their Discord account in Galtinn.
         # We do this because we don't want just anyone fetching data
         # from the database. We only want the users who have registered
-        data = requests.get(
-            f"{self.bot.galtinn['api_url']}/users/?discord_profile__discord_id={interaction.user.id}&format=json",
-            headers={"Authorization": f"Token {self.bot.galtinn['auth_token']}"},
-        )
-        if data.status_code != 200 or not data.json():
-            self.bot.logger.error(f"Failed to fetch data from Galtinn API: {data.status_code} - {data.text}")
+        if not (data := await self.request_users({"discord_profile__discord_id": interaction.user.id})):
             embed = embed_templates.error_fatal("Noe gikk galt under henting av data fra Galtinn")
             return await interaction.response.send_message(embed=embed, ephemeral=True)
-
-        data = data.json()
 
         if not data["results"]:
             embed = embed_templates.error_warning("""
@@ -73,19 +89,10 @@ class Galtinn(commands.Cog):
             params = {
                 "discord_profile__discord_id": discordbruker.id if discordbruker else None,
                 "username": brukernavn,
-                "format": "json",
             }
-            data = requests.get(
-                f"{self.bot.galtinn['api_url']}/users/",
-                params=params,
-                headers={"Authorization": f"Token {self.bot.galtinn['auth_token']}"},
-            )
-            if data.status_code != 200 or not data.json():
-                self.bot.logger.error(f"Failed to make second Galtinn API request: {data.status_code} - {data.text}")
+            if not (data := await self.request_users(params)):
                 embed = embed_templates.error_fatal("Noe gikk galt under henting av data fra Galtinn")
                 return await interaction.response.send_message(embed=embed, ephemeral=True)
-
-            data = data.json()
 
             if not data["results"]:
                 if discordbruker:

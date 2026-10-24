@@ -6,7 +6,6 @@ from io import BytesIO
 
 import dateparser
 import discord
-import requests
 from discord import app_commands
 from discord.ext import commands
 from PIL import Image
@@ -122,11 +121,12 @@ class Misc(commands.Cog):
         """
 
         params = {"action": "autocomplete", "service": "emner", "scope": "/studier/emner", "q": emnekode, "limit": 1}
-        data = requests.get("https://www.uio.no/studier/", params=params, timeout=10)
-        if data.status_code != 200:
-            return await interaction.response.send_message(embed=embed_templates.error_fatal("Kunne ikke nå API"))
+        async with self.bot.http_session.get("https://www.uio.no/studier/", params=params) as response:
+            if response.status != 200:
+                return await interaction.response.send_message(embed=embed_templates.error_fatal("Kunne ikke nå API"))
+            text = await response.text()
 
-        results = data.text.strip("\n").split("\n")[:-1]
+        results = text.strip("\n").split("\n")[:-1]
         if not results:
             return await interaction.response.send_message(embed=embed_templates.error_warning("Fant ikke emnekode"))
 
@@ -216,12 +216,12 @@ class Misc(commands.Cog):
         land = land.upper()
         år = datetime.now().year if not år else int(år)
 
-        data = requests.get(f"https://date.nager.at/api/v3/publicholidays/{år}/{land}", timeout=10)
-        if data.status_code not in (200, 204):
-            embed = embed_templates.error_warning("Ugyldig land\nHusk å bruke landskoder\n" + "For eksempel: `NO`")
-            return await interaction.response.send_message(embed=embed)
+        async with self.bot.http_session.get(f"https://date.nager.at/api/v3/publicholidays/{år}/{land}") as response:
+            if response.status not in (200, 204):
+                embed = embed_templates.error_warning("Ugyldig land\nHusk å bruke landskoder\n" + "For eksempel: `NO`")
+                return await interaction.response.send_message(embed=embed)
+            data = await response.json(content_type=None) if response.status == 200 else []
 
-        data = data.json() if data.status_code == 200 else []
         if not data:
             embed = embed_templates.error_warning(f"Fant ingen helligdager for `{land}` i {år}")
             return await interaction.response.send_message(embed=embed)

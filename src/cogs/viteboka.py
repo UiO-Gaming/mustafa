@@ -1,7 +1,7 @@
+import aiohttp
 import discord
 import pypandoc
 import regex  # This should be redundant as re now supports recursive patterns, but apparently it doesn't
-import requests
 from discord import app_commands
 from discord.ext import commands
 
@@ -11,12 +11,13 @@ WIKI_BASE_URL = "https://viteboka.studentersamfundet.no"
 API_URL = f"{WIKI_BASE_URL}/w/api.php"
 
 
-async def fetch_article(title: str):
+async def fetch_article(session: aiohttp.ClientSession, title: str):
     """
     Fetch an article from Viteboka
 
     Parameters
     ----------
+    session (aiohttp.ClientSession): The HTTP session to use
     title (str): The title of the article to fetch
 
     Returns
@@ -31,12 +32,10 @@ async def fetch_article(title: str):
         "prop": "text|images|displaytitle|wikitext",
     }
 
-    response = requests.get(API_URL, params=params)
-
-    if response.status_code != 200:
-        raise VitebokaException("Klarte ikke å nå API")
-
-    page = response.json()
+    async with session.get(API_URL, params=params) as response:
+        if response.status != 200:
+            raise VitebokaException("Klarte ikke å nå API")
+        page = await response.json(content_type=None)
     if not (parse := page.get("parse")):
         raise VitebokaException(
             "Fant ingen artikkel med det navnet. Kan hende den finnes, men wiki-søk er balle. De burde tatt søketek"
@@ -127,13 +126,12 @@ class Viteboka(commands.Cog):
             "list": "search",
             "srsearch": søkestreng,
         }
-        response = requests.get(url=API_URL, params=params)
-        if response.status_code != 200:
-            self.bot.logger.error(f"Failed to search for articles with query {søkestreng}: {response.status_code}")
-            embed = embed_templates.error_fatal("Klarte ikke å søke etter artikler")
-            return await interaction.followup.send(embed=embed)
-
-        data = response.json()
+        async with self.bot.http_session.get(API_URL, params=params) as response:
+            if response.status != 200:
+                self.bot.logger.error(f"Failed to search for articles with query {søkestreng}: {response.status}")
+                embed = embed_templates.error_fatal("Klarte ikke å søke etter artikler")
+                return await interaction.followup.send(embed=embed)
+            data = await response.json(content_type=None)
         search_results = data["query"]["search"]
 
         if not search_results:
@@ -156,7 +154,7 @@ class Viteboka(commands.Cog):
             return await interaction.followup.send(embed=embed, view=view)
 
         try:
-            title, url, text, image = await fetch_article(title)
+            title, url, text, image = await fetch_article(self.bot.http_session, title)
         except VitebokaException as e:
             self.bot.logger.error(f"Failed to fetch article {title}: {e}")
             embed = embed_templates.error_fatal(str(e))
@@ -187,17 +185,16 @@ class Viteboka(commands.Cog):
             "rnlimit": 1,  # Get one random article
         }
 
-        response = requests.get(url=API_URL, params=params)
-        if response.status_code != 200:
-            self.bot.logger.error(f"Failed to fetch random article: {response.status_code}")
-            embed = embed_templates.error_fatal("Klarte ikke å søke etter en tilfeldig artikkel")
-            return await interaction.followup.send(embed=embed)
-
-        data = response.json()
+        async with self.bot.http_session.get(API_URL, params=params) as response:
+            if response.status != 200:
+                self.bot.logger.error(f"Failed to fetch random article: {response.status}")
+                embed = embed_templates.error_fatal("Klarte ikke å søke etter en tilfeldig artikkel")
+                return await interaction.followup.send(embed=embed)
+            data = await response.json(content_type=None)
         random_article_title = data["query"]["random"][0]["title"]
 
         try:
-            title, url, text, image = await fetch_article(random_article_title)
+            title, url, text, image = await fetch_article(self.bot.http_session, random_article_title)
         except VitebokaException as e:
             self.bot.logger.error(f"Failed to fetch article {random_article_title}: {e}")
             embed = embed_templates.error_fatal(str(e))
@@ -245,7 +242,7 @@ class ArticleButton(discord.ui.Button):
             )
 
         try:
-            title, url, text, image = await fetch_article(self.article_title)
+            title, url, text, image = await fetch_article(interaction.client.http_session, self.article_title)
         except VitebokaException as e:
             embed = embed_templates.error_fatal(str(e))
             return await interaction.followup.send(embed=embed)

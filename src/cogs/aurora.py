@@ -3,7 +3,6 @@ from datetime import timedelta
 from datetime import timezone
 
 import discord
-import requests
 from discord.ext import commands
 from discord.ext import tasks
 
@@ -38,7 +37,10 @@ class Aurora(commands.Cog):
         (dict) The forecast data | None
         """
 
-        data = requests.get("https://www.yr.no/api/v0/locations/1-72837/auroraforecast?language=nb").json()
+        async with self.bot.http_session.get(
+            "https://www.yr.no/api/v0/locations/1-72837/auroraforecast?language=nb"
+        ) as response:
+            data = await response.json(content_type=None)
         try:
             if not data or data["status"]["code"] != "Ok":
                 self.bot.logger.warning("Failed to get forecast data")

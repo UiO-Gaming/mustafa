@@ -1,9 +1,7 @@
 import asyncio
-import json
 from zoneinfo import ZoneInfo
 
 import discord
-import requests
 from discord.ext import commands
 
 
@@ -94,11 +92,13 @@ class WebsiteEvents(commands.Cog):
             ]
         }
 
-        response = requests.post(self.api_url, headers=self.auth_header, data=json.dumps(mutation))
-        if response.status_code == 200:
-            self.bot.logger.info(f"Created Event in Sanity with ID: {event.id}")
-        else:
-            self.bot.logger.error(f"Failed to create event in Sanity with ID: {event.id}. Response: {response.text}")
+        async with self.bot.http_session.post(self.api_url, headers=self.auth_header, json=mutation) as response:
+            if response.status == 200:
+                self.bot.logger.info(f"Created Event in Sanity with ID: {event.id}")
+            else:
+                self.bot.logger.error(
+                    f"Failed to create event in Sanity with ID: {event.id}. Response: {await response.text()}"
+                )
 
     @commands.Cog.listener("on_scheduled_event_delete")
     async def delete_event(self, event: discord.ScheduledEvent):
@@ -115,11 +115,13 @@ class WebsiteEvents(commands.Cog):
 
         mutation = {"mutations": [{"delete": {"id": str(event.id)}}]}
 
-        response = requests.post(self.api_url, headers=self.auth_header, data=json.dumps(mutation))
-        if response.status_code == 200:
-            self.bot.logger.info(f"Deleted Event in Sanity with ID: {event.id}")
-        else:
-            self.bot.logger.error(f"Failed to delete event in Sanity with ID: {event.id}. Response: {response.text}")
+        async with self.bot.http_session.post(self.api_url, headers=self.auth_header, json=mutation) as response:
+            if response.status == 200:
+                self.bot.logger.info(f"Deleted Event in Sanity with ID: {event.id}")
+            else:
+                self.bot.logger.error(
+                    f"Failed to delete event in Sanity with ID: {event.id}. Response: {await response.text()}"
+                )
 
     @commands.Cog.listener("on_scheduled_event_update")
     async def update_event(self, before: discord.ScheduledEvent, after: discord.ScheduledEvent):
