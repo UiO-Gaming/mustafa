@@ -406,26 +406,16 @@ class WordCloud(commands.Cog):
                 embed=embed_templates.error_warning(self.MSG_NO_DATA), ephemeral=False
             )
 
-        # Fetch tracking start time metadata
-        # This doesn't work most of the time so consider using the API call instead of cache call
-        # Or consider removing this feature entirely
+        # The stored "message" ID is the ID of the consent interaction, so its timestamp is when tracking started
         self.cursor.execute(
             """
-            SELECT tracked_since_message_channel_id, tracked_since_message_id
+            SELECT tracked_since_message_id
             FROM wordcloud_metadata
             WHERE discord_user_id = %s
             """,
             (interaction.user.id,),
         )
-        origin_msg_channel_id, origin_msg_id = self.cursor.fetchone()
-        try:
-            origin_msg_channel = self.bot.get_channel(origin_msg_channel_id)
-            origin_msg = await origin_msg_channel.fetch_message(origin_msg_id)
-            origin_msg_timestamp = discord.utils.format_dt(origin_msg.created_at, style="f")
-        except discord.errors.NotFound:
-            origin_found = False
-        else:
-            origin_found = True
+        tracked_since = discord.utils.snowflake_time(self.cursor.fetchone()[0])
 
         # Converts the raw SQL results tuple to a string where
         # each word occurs the x number of frequency that is provided
@@ -438,11 +428,9 @@ class WordCloud(commands.Cog):
 
         word_cloud_file = discord.File(word_cloud, filename=f"wordcloud_{interaction.user.id}.png")
         embed = discord.Embed(title="☁️ Her er ordskyen din! ☁️")
-        embed.description = "Basert på de 4000 mest frekvente ordene dine siden "
-        if origin_found:
-            embed.description += f"{origin_msg_timestamp}\n[Se melding]({origin_msg.jump_url})"
-        else:
-            embed.description += "`ukjent dato`"
+        embed.description = (
+            f"Basert på de 4000 mest frekvente ordene dine siden {discord.utils.format_dt(tracked_since, style='f')}"
+        )
         embed.set_image(url=f"attachment://wordcloud_{interaction.user.id}.png")
         await interaction.followup.send(embed=embed, file=word_cloud_file)
 
