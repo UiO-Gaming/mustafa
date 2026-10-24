@@ -197,6 +197,8 @@ class UserFacts(commands.Cog):
         if not bruker:
             bruker = interaction.user
 
+        await interaction.response.defer()
+
         self.cursor.execute(
             """
             SELECT mbti FROM user_facts
@@ -207,7 +209,7 @@ class UserFacts(commands.Cog):
         user_mbti = self.cursor.fetchone()
 
         if not user_mbti:
-            return await interaction.response.send_message(
+            return await interaction.followup.send(
                 embed=embed_templates.error_warning("Brukeren har ikke lagt inn MBTI-en sin")
             )
 
@@ -225,7 +227,7 @@ class UserFacts(commands.Cog):
         )
 
         if not (results := self.cursor.fetchall()):
-            return await interaction.response.send_message(embed=embed)
+            return await interaction.followup.send(embed=embed)
 
         others = []
         for discord_id, mbti in results:
@@ -244,7 +246,7 @@ class UserFacts(commands.Cog):
             image = discord.File(f, filename=f"{bruker.id}_mbti.png")
 
         embed.set_image(url=f"attachment://{bruker.id}_mbti.png")
-        await interaction.response.send_message(embed=embed, file=image)
+        await interaction.followup.send(embed=embed, file=image)
 
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 2)
