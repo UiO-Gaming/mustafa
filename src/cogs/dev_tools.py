@@ -42,7 +42,7 @@ class DevTools(commands.Cog):
         name="custommsg",
         description="Send en melding til hvilken som helst kanal på hvilken som helst server botten er i",
     )
-    async def custommsg(self, ctx: commands.Context, channel: int, text: str):
+    async def custommsg(self, ctx: commands.Context, channel: int, *, text: str):
         """
         Send a message to any channel on any server the bot is in
 
