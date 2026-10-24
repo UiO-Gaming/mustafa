@@ -291,6 +291,8 @@ class MoveTeamVoiceButton(discord.ui.Button):
 
         if not self.clicked[team["number"]]:
             channel = await temp_voice.create_temp_voice(interaction, name=f"10 man - Lag {team['number']}")
+            if not channel:
+                return
             self.clicked[team["number"]] = channel
             failed_users = await temp_voice.move_players(interaction, self.clicked[team["number"]], team["players"])
         else:
