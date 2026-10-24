@@ -1022,7 +1022,7 @@ class Anime(commands.Cog):
                 voice_actor_language = self.convert_language_names(voice_actor["language"])
                 voice_actor_name = voice_actor["name"]["full"]
                 if voice_actor["name"]["native"] != " " and voice_actor["name"]["native"] is not None:
-                    voice_actor_name += f' ({voice_actor["name"]["native"]}'
+                    voice_actor_name += f' ({voice_actor["name"]["native"]})'
                 voice_actors.append(f"\t* {voice_actor_language} stemme: [{voice_actor_name}]({voice_actor_url})")
 
             voice_actors_string = "\n".join(voice_actors)
@@ -1122,7 +1122,7 @@ class Anime(commands.Cog):
             character_url = character["node"]["siteUrl"]
             character_name = character["node"]["name"]["full"]
             if character["node"]["name"]["native"] != " " and character["node"]["name"]["native"] is not None:
-                character_name += f' ({character["node"]["name"]["native"]}'
+                character_name += f' ({character["node"]["name"]["native"]})'
             characters.append(f"* [{character_name}]({character_url})")
         characters = "\n".join(characters)
 
