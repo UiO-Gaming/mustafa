@@ -12,6 +12,8 @@ COPY pyproject.toml uv.lock .python-version ./
 
 RUN uv sync --locked --no-dev --no-cache
 
+RUN .venv/bin/python -m nltk.downloader -d /usr/local/share/nltk_data stopwords
+
 COPY . .
 
 ENV PATH="/app/.venv/bin:$PATH"

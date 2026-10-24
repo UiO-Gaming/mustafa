@@ -45,7 +45,10 @@ class WordCloud(commands.Cog):
         self.consenting_users = []
         self.populate_consenting_users()
 
-        nltk.download("stopwords")
+        try:
+            nltk.data.find("corpora/stopwords")
+        except LookupError:
+            nltk.download("stopwords")
 
         self.insert_cache_loop.start()
 
