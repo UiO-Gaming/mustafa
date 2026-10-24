@@ -412,7 +412,7 @@ class Anime(commands.Cog):
             embed.add_field(name="Noen favorittkarakterer", value=favourite_character, inline=False)
         if favourite_studio:
             embed.add_field(name="Noen favorittstudioer", value=favourite_studio, inline=False)
-        if favourite_studio:
+        if favourite_staff:
             embed.add_field(name="Noen favorittskapere", value=favourite_staff, inline=False)
         await interaction.response.send_message(embed=embed)
 
