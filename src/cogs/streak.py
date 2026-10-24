@@ -191,7 +191,7 @@ class Streak(commands.Cog):
 
         self.cursor.execute(
             """
-            SELECT streak_start_id, streak_start_time
+            SELECT streak_start_id, streak_start_time::timestamptz
             FROM streak
             WHERE discord_id = %s;
             """,
@@ -211,13 +211,11 @@ class Streak(commands.Cog):
             streak_message = None
 
         if not streak_message:
-            streak_msg_time = datetime.fromtimestamp(streak[2])
-            streak_msg_link_txt = "*Meldingen kunne ikke lastes inn*"
-            streak_msg_link = ""
+            streak_msg_time = streak[1]
+            streak_msg_link = "*Meldingen kunne ikke lastes inn*"
         else:
             streak_msg_time = streak_message.created_at
-            streak_msg_link_txt = "Meldingen"
-            streak_msg_link = streak_message.jump_url
+            streak_msg_link = f"[Meldingen]({streak_message.jump_url})"
 
         streak_days = (datetime.now(timezone.utc) - streak_msg_time).days
         streak_msg_timestamp = discord.utils.format_dt(streak_msg_time, "F")
@@ -225,9 +223,7 @@ class Streak(commands.Cog):
         embed = discord.Embed(title="Streak", description=bruker.mention)
         embed.set_author(name=bruker.name, icon_url=bruker.avatar)
         embed.add_field(name="Antall dager", value=streak_days)
-        embed.add_field(
-            name="Startet streaken", value=f"{streak_msg_timestamp}\n[{streak_msg_link_txt}]({streak_msg_link})"
-        )
+        embed.add_field(name="Startet streaken", value=f"{streak_msg_timestamp}\n{streak_msg_link}")
         await interaction.followup.send(embed=embed)
 
     @app_commands.checks.bot_has_permissions(embed_links=True)
