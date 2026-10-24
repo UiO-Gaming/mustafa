@@ -58,9 +58,11 @@ class SocialCredit(commands.Cog):
         await self.bot.db.execute("""
             CREATE TABLE IF NOT EXISTS social_credit (
                 user_id BIGINT PRIMARY KEY,
-                credit_score SMALLINT NOT NULL
+                credit_score INTEGER NOT NULL
             );
             """)
+
+        await self.bot.db.execute("ALTER TABLE social_credit ALTER COLUMN credit_score TYPE INTEGER;")
 
     def add_new_citizen(func):
         """
