@@ -42,15 +42,20 @@ class SocialCredit(commands.Cog):
         self.START_POINTS = 1000
         self.STAR_THRESHOLD = 3
         self.POINTS_PER_STAR = 25
-        self.cursor = self.bot.db_connection.cursor()
-        self.init_db()
 
-    def init_db(self):
+    async def cog_load(self):
+        """
+        Set up the database before the cog is used
+        """
+
+        await self.init_db()
+
+    async def init_db(self):
         """
         Create the necessary tables for the social credit cog to work
         """
 
-        self.cursor.execute("""
+        await self.bot.db.execute("""
             CREATE TABLE IF NOT EXISTS social_credit (
                 user_id BIGINT PRIMARY KEY,
                 credit_score SMALLINT NOT NULL
@@ -65,7 +70,7 @@ class SocialCredit(commands.Cog):
 
         async def wrapper(*args, **kwargs):
             self = args[0]
-            self.add_citizen(args[1])
+            await self.add_citizen(args[1])
             await func(*args, **kwargs)
 
         return wrapper
@@ -84,7 +89,7 @@ class SocialCredit(commands.Cog):
 
         return decorator
 
-    def add_citizen(self, user_id: int):
+    async def add_citizen(self, user_id: int):
         """
         Adds a user to the database if they aren't already in it
 
@@ -93,7 +98,7 @@ class SocialCredit(commands.Cog):
         user_id (int): The user's Discord ID
         """
 
-        self.cursor.execute(
+        await self.bot.db.execute(
             """
             INSERT INTO social_credit
             (user_id, credit_score)
@@ -142,7 +147,6 @@ class SocialCredit(commands.Cog):
     async def cog_unload(self):
         self.bot.logger.info("Unloading cog")
         self.fuck_uwu.cancel()
-        self.cursor.close()
 
     @add_new_citizen
     async def social_punishment(self, user_id: int, points: int, reason: str):
@@ -157,7 +161,7 @@ class SocialCredit(commands.Cog):
         """
 
         self.bot.logger.info(f"{points} points deducted from {user_id} ({reason})")
-        self.cursor.execute(
+        await self.bot.db.execute(
             """
             UPDATE social_credit
             SET credit_score = credit_score - %s
@@ -179,7 +183,7 @@ class SocialCredit(commands.Cog):
         """
 
         self.bot.logger.info(f"{points} points given to {user_id} ({reason})")
-        self.cursor.execute(
+        await self.bot.db.execute(
             """
             UPDATE social_credit
             SET credit_score = credit_score + %s
@@ -206,14 +210,13 @@ class SocialCredit(commands.Cog):
         if not bruker:
             bruker = interaction.user
 
-        self.cursor.execute(
+        result = await self.bot.db.fetchone(
             """
             SELECT * FROM social_credit
             WHERE user_id = %s
             """,
             (bruker.id,),
         )
-        result = self.cursor.fetchone()
 
         if not result:
             return await interaction.response.send_message(
@@ -239,11 +242,10 @@ class SocialCredit(commands.Cog):
 
         await interaction.response.defer()
 
-        self.cursor.execute("""
+        result = await self.bot.db.fetchall("""
             SELECT * FROM social_credit
             ORDER BY credit_score DESC
             """)
-        result = self.cursor.fetchall()
 
         if not result:
             return await interaction.followup.send(

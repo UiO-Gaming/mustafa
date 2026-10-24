@@ -9,13 +9,12 @@ from io import StringIO
 import discord
 import nltk
 import numpy as np
-import psycopg2
+import psycopg
 from discord import app_commands
 from discord.ext import commands
 from discord.ext import tasks
 from nltk.corpus import stopwords
 from PIL import Image
-from psycopg2.extras import execute_batch
 from wordcloud import WordCloud as WCloud  # Avoid naming conflicts with cog class name
 
 from cogs.utils import embed_templates
@@ -33,8 +32,6 @@ class WordCloud(commands.Cog):
         """
 
         self.bot = bot
-        self.cursor = self.bot.db_connection.cursor()
-        self.init_db()
 
         # Default dict where all users are empty defaultdicts
         # The user's defaultdict has a default value of 0
@@ -43,30 +40,36 @@ class WordCloud(commands.Cog):
         # We cache the consenting users to avoid querying the database every 16:36
         # It's frail but it works unless you have a skill issue
         self.consenting_users = []
-        self.populate_consenting_users()
 
         try:
             nltk.data.find("corpora/stopwords")
         except LookupError:
             nltk.download("stopwords")
 
-        self.insert_cache_loop.start()
-
         self.MSG_NO_DATA = "Fant ingen data om deg"  # SonarCloud recommended this LMAO. Makes sense but also not
 
-    def init_db(self):
+    async def cog_load(self):
+        """
+        Set up the database before the cog is used
+        """
+
+        await self.init_db()
+        await self.populate_consenting_users()
+        self.insert_cache_loop.start()
+
+    async def init_db(self):
         """
         Create the necessary tables for the Ordsky cog to work
         """
 
-        self.cursor.execute("""
+        await self.bot.db.execute("""
             CREATE TABLE IF NOT EXISTS wordcloud_metadata (
                 discord_user_id BIGINT PRIMARY KEY,
                 tracked_since_message_channel_id BIGINT NOT NULL,
                 tracked_since_message_id BIGINT NOT NULL UNIQUE
             )
             """)
-        self.cursor.execute("""
+        await self.bot.db.execute("""
             CREATE TABLE IF NOT EXISTS wordcloud_words (
                 discord_user_id BIGINT NOT NULL,
                 word TEXT NOT NULL,
@@ -83,18 +86,17 @@ class WordCloud(commands.Cog):
         self.bot.logger.info("Unloading cog")
         self.insert_cache_loop.cancel()
         await self.insert_cache()
-        self.cursor.close()
 
-    def populate_consenting_users(self):
+    async def populate_consenting_users(self):
         """
         Populates the cached list of consenting users
         """
 
-        self.cursor.execute("""
+        rows = await self.bot.db.fetchall("""
             SELECT discord_user_id
             FROM wordcloud_metadata
             """)
-        self.consenting_users = [row[0] for row in self.cursor.fetchall()]
+        self.consenting_users = [row[0] for row in rows]
 
     async def insert_cache(self):
         """
@@ -105,19 +107,21 @@ class WordCloud(commands.Cog):
         if not self.word_freq_cache:
             return
 
+        # Swap in an empty cache before awaiting, so words from messages sent in the meantime aren't lost
+        cache, self.word_freq_cache = self.word_freq_cache, defaultdict(lambda: defaultdict(int))
+
         # Flatten the defaultdict into a list of tuples
         # This is a bit of a hack but it works
         word_freqs = list(
             itertools.chain.from_iterable(
                 [(user_id, word, freq) for word, freq in user_word_freqs.items()]
-                for user_id, user_word_freqs in self.word_freq_cache.items()
+                for user_id, user_word_freqs in cache.items()
             )
         )
 
         # Insert cache into database
         try:
-            execute_batch(
-                self.cursor,
+            await self.bot.db.executemany(
                 """
                 INSERT INTO wordcloud_words (discord_user_id, word, frequency)
                 VALUES (%s, %s, %s)
@@ -126,10 +130,8 @@ class WordCloud(commands.Cog):
                 """,
                 word_freqs,
             )
-        except psycopg2.Error as err:
+        except psycopg.Error as err:
             self.bot.logger.error(f"Failed to insert wordcloud cache into database - {err}")
-
-        self.word_freq_cache.clear()
 
     @tasks.loop(minutes=20)
     @misc_utils.log_errors
@@ -323,15 +325,14 @@ class WordCloud(commands.Cog):
             )
 
         try:
-            self.cursor.execute(
+            await self.bot.db.execute(
                 """
                 INSERT INTO wordcloud_metadata
                 VALUES (%s, %s, %s)
                 """,
                 (interaction.user.id, interaction.channel_id, interaction.id),
             )
-        except psycopg2.Error as err:
-            self.bot.db_connection.rollback()
+        except psycopg.Error as err:
             self.bot.logger.error(f"Failed to insert wordcloud metadata into database - {err}")
             return await interaction.response.send_message(
                 embed=embed_templates.error_fatal("Klarte ikke å skrive til database"),
@@ -365,15 +366,13 @@ class WordCloud(commands.Cog):
         self.word_freq_cache.pop(interaction.user.id, None)
 
         try:
-            self.cursor.execute(
-                """
-                DELETE FROM wordcloud_metadata WHERE discord_user_id = %s;
-                DELETE FROM wordcloud_words WHERE discord_user_id = %s;
-                """,
-                (interaction.user.id, interaction.user.id),
+            await self.bot.db.execute_in_transaction(
+                [
+                    ("DELETE FROM wordcloud_metadata WHERE discord_user_id = %s", (interaction.user.id,)),
+                    ("DELETE FROM wordcloud_words WHERE discord_user_id = %s", (interaction.user.id,)),
+                ]
             )
-        except psycopg2.Error as err:
-            self.bot.db_connection.rollback()
+        except psycopg.Error as err:
             self.bot.logger.error(f"Failed to delete wordcloud metadata from database - {err}")
             return await interaction.response.send_message(
                 embed=embed_templates.error_fatal("Klarte ikke å slette fra database"),
@@ -395,7 +394,7 @@ class WordCloud(commands.Cog):
         interaction (discord.Interaction): Slash command context object
         """
 
-        self.cursor.execute(
+        result = await self.bot.db.fetchall(
             """
             SELECT word, frequency
             FROM wordcloud_words
@@ -404,7 +403,6 @@ class WordCloud(commands.Cog):
             """,
             (interaction.user.id,),
         )
-        result = self.cursor.fetchall()
 
         if not result:
             return await interaction.response.send_message(
@@ -442,7 +440,7 @@ class WordCloud(commands.Cog):
         await self.insert_cache()
 
         # Fetch word count from database
-        self.cursor.execute(
+        results = await self.bot.db.fetchall(
             """
             SELECT word, frequency
             FROM wordcloud_words
@@ -450,7 +448,6 @@ class WordCloud(commands.Cog):
             """,
             (interaction.user.id,),
         )
-        results = self.cursor.fetchall()
 
         if not results:
             return await interaction.followup.send(
@@ -458,7 +455,7 @@ class WordCloud(commands.Cog):
             )
 
         # The stored "message" ID is the ID of the consent interaction, so its timestamp is when tracking started
-        self.cursor.execute(
+        row = await self.bot.db.fetchone(
             """
             SELECT tracked_since_message_id
             FROM wordcloud_metadata
@@ -466,7 +463,7 @@ class WordCloud(commands.Cog):
             """,
             (interaction.user.id,),
         )
-        tracked_since = discord.utils.snowflake_time(self.cursor.fetchone()[0])
+        tracked_since = discord.utils.snowflake_time(row[0])
 
         generation_task = functools.partial(WordCloud.generate_wordcloud_from_frequencies, dict(results))
         word_cloud = await self.bot.loop.run_in_executor(None, generation_task)

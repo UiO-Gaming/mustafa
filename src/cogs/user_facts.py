@@ -14,8 +14,6 @@ from cogs.utils import misc_utils
 class UserFacts(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.cursor = self.bot.db_connection.cursor()
-        self.init_db()
 
         self.mbti_codes = {
             "INTJ",
@@ -38,12 +36,19 @@ class UserFacts(commands.Cog):
         self.mbti_list = list(self.mbti_codes)
         self.similarity_matrix = self.create_similarity_matrix()
 
-    def init_db(self):
+    async def cog_load(self):
+        """
+        Set up the database before the cog is used
+        """
+
+        await self.init_db()
+
+    async def init_db(self):
         """
         Create the necessary tables for the birthday cog to work
         """
 
-        self.cursor.execute("""
+        await self.bot.db.execute("""
             CREATE TABLE IF NOT EXISTS user_facts (
                 discord_id BIGINT PRIMARY KEY,
                 mbti CHAR(4),
@@ -69,14 +74,13 @@ class UserFacts(commands.Cog):
         if not bruker:
             bruker = interaction.user
 
-        self.cursor.execute(
+        height = await self.bot.db.fetchone(
             """
             SELECT height FROM user_facts
             WHERE discord_id = %s and height IS NOT NULL;
             """,
             (bruker.id,),
         )
-        height = self.cursor.fetchone()
 
         if not height:
             return await interaction.response.send_message(
@@ -110,7 +114,7 @@ class UserFacts(commands.Cog):
         height_cm (int): The height of the user
         """
 
-        self.cursor.execute(
+        await self.bot.db.execute(
             """
             INSERT INTO user_facts (discord_id, height)
             VALUES (%s, %s)
@@ -134,7 +138,7 @@ class UserFacts(commands.Cog):
         interaction (discord.Interaction): The interaction object
         """
 
-        self.cursor.execute(
+        updated = await self.bot.db.execute(
             """
             UPDATE user_facts
             SET height = NULL
@@ -143,7 +147,7 @@ class UserFacts(commands.Cog):
             (interaction.user.id,),
         )
 
-        if self.cursor.rowcount == 0:
+        if updated == 0:
             return await interaction.response.send_message(
                 embed=embed_templates.success("Du hadde ikke lagt inn høyden din fra før av men ok :)")
             )
@@ -162,13 +166,13 @@ class UserFacts(commands.Cog):
         interaction (discord.Interaction): The interaction object
         """
 
-        self.cursor.execute("""
+        result = await self.bot.db.fetchall("""
             SELECT discord_id, height FROM user_facts
             WHERE height IS NOT NULL
             ORDER BY height DESC;
             """)
 
-        if not (result := self.cursor.fetchall()):
+        if not result:
             return await interaction.response.send_message(
                 embed=embed_templates.error_warning("Ingen har lagt inn høyden sin enda")
             )
@@ -201,14 +205,13 @@ class UserFacts(commands.Cog):
 
         await interaction.response.defer()
 
-        self.cursor.execute(
+        user_mbti = await self.bot.db.fetchone(
             """
             SELECT mbti FROM user_facts
             WHERE discord_id = %s AND mbti IS NOT NULL;
             """,
             (bruker.id,),
         )
-        user_mbti = self.cursor.fetchone()
 
         if not user_mbti:
             return await interaction.followup.send(
@@ -220,7 +223,7 @@ class UserFacts(commands.Cog):
         embed = discord.Embed(color=bruker.color, title="MBTI", description=user_mbti)
         embed.set_author(name=bruker.global_name, icon_url=bruker.avatar)
 
-        self.cursor.execute(
+        results = await self.bot.db.fetchall(
             """
             SELECT discord_id, mbti FROM user_facts
             WHERE mbti IS NOT NULL and discord_id != %s;
@@ -228,7 +231,7 @@ class UserFacts(commands.Cog):
             (bruker.id,),
         )
 
-        if not (results := self.cursor.fetchall()):
+        if not results:
             return await interaction.followup.send(embed=embed)
 
         others = []
@@ -264,7 +267,7 @@ class UserFacts(commands.Cog):
         if mbti.upper() not in self.mbti_codes:
             return await interaction.response.send_message(embed=embed_templates.error_warning("Ugyldig MBTI"))
 
-        self.cursor.execute(
+        await self.bot.db.execute(
             """
             INSERT INTO user_facts (discord_id, mbti)
             VALUES (%s, %s)
@@ -303,7 +306,7 @@ class UserFacts(commands.Cog):
         interaction (discord.Interaction): The interaction object
         """
 
-        self.cursor.execute(
+        updated = await self.bot.db.execute(
             """
             UPDATE user_facts
             SET mbti = NULL
@@ -312,7 +315,7 @@ class UserFacts(commands.Cog):
             (interaction.user.id,),
         )
 
-        if self.cursor.rowcount == 0:
+        if updated == 0:
             return await interaction.response.send_message(
                 embed=embed_templates.success("Du hadde ikke lagt inn MBTIen din fra før av men ok :)")
             )

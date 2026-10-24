@@ -25,17 +25,21 @@ class Birthday(commands.Cog):
         """
 
         self.bot = bot
-        self.cursor = self.bot.db_connection.cursor()
-        self.init_db()
-        self.cursor.execute("SET timezone TO 'Europe/Oslo';")
+
+    async def cog_load(self):
+        """
+        Set up the database before the cog is used
+        """
+
+        await self.init_db()
         self.birthday_check.start()
 
-    def init_db(self):
+    async def init_db(self):
         """
         Create the necessary tables for the birthday cog to work
         """
 
-        self.cursor.execute("""
+        await self.bot.db.execute("""
             CREATE TABLE IF NOT EXISTS birthdays (
                 discord_id BIGINT PRIMARY KEY,
                 birthday DATE
@@ -57,7 +61,7 @@ class Birthday(commands.Cog):
 
         self.bot.logger.info("Checking for birthdays")
 
-        self.cursor.execute("""
+        birthdays = await self.bot.db.fetchall("""
             SELECT *
             FROM birthdays
             WHERE (
@@ -71,7 +75,6 @@ class Birthday(commands.Cog):
             );
             """)
 
-        birthdays = self.cursor.fetchall()
         self.bot.logger.info(f"Found the following birthdays: {birthdays}")
 
         if not birthdays:
@@ -140,9 +143,8 @@ class Birthday(commands.Cog):
     async def cog_unload(self):
         self.bot.logger.info("Unloading cog")
         self.birthday_check.cancel()
-        self.cursor.close()
 
-    def fetch_user_birthday(self, user_id: int) -> datetime | None:
+    async def fetch_user_birthday(self, user_id: int) -> datetime | None:
         """
         Fetch the birthday of a user in the database
 
@@ -155,13 +157,12 @@ class Birthday(commands.Cog):
         (datetime | None): The birthday of the user
         """
 
-        self.cursor.execute("SELECT birthday FROM birthdays WHERE discord_id = (%s)", (user_id,))
-        result = self.cursor.fetchone()
+        result = await self.bot.db.fetchone("SELECT birthday FROM birthdays WHERE discord_id = (%s)", (user_id,))
         if result:
             birthday = result[0]
             return datetime(birthday.year, birthday.month, birthday.day)
 
-    def fetch_user_next_birthday(self, user_id: int) -> datetime:
+    async def fetch_user_next_birthday(self, user_id: int) -> datetime:
         """
         Get date of next birthday for a user
 
@@ -174,7 +175,7 @@ class Birthday(commands.Cog):
         (datetime): The date of the next birthday
         """
 
-        self.cursor.execute(
+        results = await self.bot.db.fetchone(
             """
             SELECT *, CAST(birthday + ((EXTRACT(YEAR FROM AGE(birthday)) + 1) * interval '1' YEAR) AS DATE) AS next_bday
             FROM birthdays
@@ -182,7 +183,6 @@ class Birthday(commands.Cog):
             """,
             (user_id,),
         )
-        results = self.cursor.fetchone()
         if results:
             birthday = results[2]
             return datetime(birthday.year, birthday.month, birthday.day)
@@ -190,7 +190,7 @@ class Birthday(commands.Cog):
             # This will never happen unless a database error occurs. Keeping the type checker happy
             return datetime.now()
 
-    def fetch_next_birthdays(self) -> list[tuple[int, datetime, datetime]]:
+    async def fetch_next_birthdays(self) -> list[tuple[int, datetime, datetime]]:
         """
         Fetch the 5 first future birthdays of all users in the database
 
@@ -199,12 +199,11 @@ class Birthday(commands.Cog):
         (list[tuple[int, datetime, datetime]]): List of tuples containing the user ID, date of birth and next birthday
         """
 
-        self.cursor.execute("""
+        results = await self.bot.db.fetchall("""
             SELECT *, CAST(birthday + ((EXTRACT(YEAR FROM AGE(birthday)) + 1) * interval '1' YEAR) AS DATE) AS next_bday
             FROM birthdays
             ORDER BY next_bday ASC
             """)
-        results = self.cursor.fetchall()
 
         # Convert date objects to datetime objects
         birthdays = []
@@ -216,7 +215,7 @@ class Birthday(commands.Cog):
 
         return birthdays
 
-    def set_user_birthday(self, user_id: int, birthday: datetime):
+    async def set_user_birthday(self, user_id: int, birthday: datetime):
         """
         Set the birthday of a user in the database. If it already exists, update it.
 
@@ -226,7 +225,7 @@ class Birthday(commands.Cog):
         birthday (datetime): The birthday of the user
         """
 
-        self.cursor.execute(
+        await self.bot.db.execute(
             """
             INSERT INTO birthdays (discord_id, birthday)
             VALUES (%s, %s)
@@ -275,7 +274,7 @@ class Birthday(commands.Cog):
                 ephemeral=True,
             )
 
-        self.set_user_birthday(interaction.user.id, date)
+        await self.set_user_birthday(interaction.user.id, date)
 
         embed = embed_templates.success(f"Bursdag satt til {discord.utils.format_dt(date, style='D')}")
         await interaction.response.send_message(embed=embed)
@@ -292,7 +291,7 @@ class Birthday(commands.Cog):
         interaction (discord.Interaction): Slash command context object
         """
 
-        self.cursor.execute("DELETE FROM birthdays WHERE discord_id = (%s)", (interaction.user.id,))
+        await self.bot.db.execute("DELETE FROM birthdays WHERE discord_id = (%s)", (interaction.user.id,))
 
         embed = embed_templates.success("Bursdag fjernet")
         await interaction.response.send_message(embed=embed)
@@ -315,7 +314,7 @@ class Birthday(commands.Cog):
         if not bruker:
             bruker = interaction.user
 
-        user = self.fetch_user_birthday(bruker.id)
+        user = await self.fetch_user_birthday(bruker.id)
 
         if not user:
             return await interaction.response.send_message(
@@ -328,7 +327,7 @@ class Birthday(commands.Cog):
         years_old = relativedelta(datetime.now(), birthday).years
 
         #  Next birthday information
-        next_birthday = self.fetch_user_next_birthday(bruker.id)
+        next_birthday = await self.fetch_user_next_birthday(bruker.id)
         next_birthday_days = (next_birthday.date() - datetime.now().date()).days
 
         # Japanese era
@@ -366,7 +365,7 @@ class Birthday(commands.Cog):
 
         await interaction.response.defer()
 
-        next_birthdays = self.fetch_next_birthdays()
+        next_birthdays = await self.fetch_next_birthdays()
 
         if not next_birthdays:
             return await interaction.followup.send(embed=embed_templates.error_warning("Ingen bursdager"))

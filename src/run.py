@@ -6,10 +6,11 @@ from zoneinfo import ZoneInfo
 
 import aiohttp
 import discord
-import psycopg2
 import yaml
 from discord.ext import commands
+from psycopg_pool import AsyncConnectionPool
 
+from cogs.utils.database import Database
 from logger import BotLogger
 
 DATABASE_RELIANT_COGS = {
@@ -48,14 +49,23 @@ class Bot(commands.Bot):
         self.cog_files = set(listdir("./src/cogs"))
 
         # Check for missing credentials
+        self.db_pool = None
         if self.check_credentials(config["database"], DATABASE_RELIANT_COGS):
-            self.db_connection = psycopg2.connect(
-                host=config["database"]["host"],
-                dbname=config["database"]["dbname"],
-                user=config["database"]["username"],
-                password=config["database"]["password"],
+            self.db_pool = AsyncConnectionPool(
+                kwargs={
+                    "host": config["database"]["host"],
+                    "dbname": config["database"]["dbname"],
+                    "user": config["database"]["username"],
+                    "password": config["database"]["password"],
+                    "autocommit": True,
+                },
+                configure=self.configure_db_connection,
+                check=AsyncConnectionPool.check_connection,
+                min_size=1,
+                max_size=5,
+                open=False,
             )
-            self.db_connection.autocommit = True  # Scary
+            self.db = Database(self.db_pool)
 
         if self.check_credentials(config["sanity"], SANITY_RELIANT_COGS):
             self.sanity = config["sanity"]
@@ -81,6 +91,8 @@ class Bot(commands.Bot):
 
     async def setup_hook(self):
         self.http_session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15))
+        if self.db_pool:
+            await self.db_pool.open(wait=True, timeout=30)
 
         # Docker stops the container with SIGTERM. Close gracefully so cogs can save their caches
         try:
@@ -105,6 +117,16 @@ class Bot(commands.Bot):
         await super().close()
         if hasattr(self, "http_session"):
             await self.http_session.close()
+        if self.db_pool:
+            await self.db_pool.close()
+
+    @staticmethod
+    async def configure_db_connection(conn):
+        """
+        Sets up every new database connection the same way the old single connection was set up
+        """
+
+        await conn.execute("SET timezone TO 'Europe/Oslo'")
 
     def check_credentials(self, credentials: dict, dependant_cogs: set[str]) -> bool:
         """

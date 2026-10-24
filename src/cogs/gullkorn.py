@@ -16,28 +16,33 @@ class Gullkorn(commands.Cog):
         """
 
         self.bot = bot
-        self.cursor = self.bot.db_connection.cursor()
-        self.init_db()
 
-    def init_db(self):
+    async def cog_load(self):
+        """
+        Set up the database before the cog is used
+        """
+
+        await self.init_db()
+
+    async def init_db(self):
         """
         Create the necessary tables for the gullkorn cog to work
         """
 
-        self.cursor.execute("""
+        await self.bot.db.execute("""
             CREATE TABLE IF NOT EXISTS gullkorn (
                 discord_id BIGINT PRIMARY KEY,
                 times_cited INT NOT NULL DEFAULT 0,
                 citations_posted INT NOT NULL DEFAULT 0
             );
             """)
-        self.cursor.execute("""
+        await self.bot.db.execute("""
             CREATE OR REPLACE VIEW most_cited AS
             SELECT discord_id, times_cited
             FROM gullkorn
             ORDER BY times_cited DESC;
             """)
-        self.cursor.execute("""
+        await self.bot.db.execute("""
             CREATE OR REPLACE VIEW most_frequent_posters AS
             SELECT discord_id, citations_posted
             FROM gullkorn
@@ -81,7 +86,7 @@ class Gullkorn(commands.Cog):
             return
 
         for user in message.mentions:
-            self.cursor.execute(
+            await self.bot.db.execute(
                 """
                 INSERT INTO gullkorn (discord_id, times_cited, citations_posted)
                 VALUES (%s, 1, 0)
@@ -91,7 +96,7 @@ class Gullkorn(commands.Cog):
                 (user.id,),
             )
 
-        self.cursor.execute(
+        await self.bot.db.execute(
             """
             INSERT INTO gullkorn (discord_id, times_cited, citations_posted)
             VALUES (%s, 0, 1)
@@ -120,7 +125,7 @@ class Gullkorn(commands.Cog):
 
         # This looks kinda ugly, ngl
         if bruker:
-            self.cursor.execute(
+            result = await self.bot.db.fetchone(
                 """
                 SELECT *
                 FROM gullkorn
@@ -128,7 +133,6 @@ class Gullkorn(commands.Cog):
                 """,
                 (bruker.id,),
             )
-            result = self.cursor.fetchone()
 
             if not result:
                 return await interaction.response.send_message(
@@ -145,25 +149,22 @@ class Gullkorn(commands.Cog):
             embed.add_field(name="Antall gullkorn postet", value=result[2])
             return await interaction.response.send_message(embed=embed, ephemeral=False)
 
-        self.cursor.execute("""
+        summary = await self.bot.db.fetchone("""
             SELECT SUM(citations_posted)
             FROM gullkorn;
             """)
-        summary = self.cursor.fetchone()
 
-        self.cursor.execute("""
+        most_cited = await self.bot.db.fetchall("""
             SELECT *
             FROM most_cited
             LIMIT 5;
             """)
-        most_cited = self.cursor.fetchall()
 
-        self.cursor.execute("""
+        citations_posted = await self.bot.db.fetchall("""
             SELECT *
             FROM most_frequent_posters
             LIMIT 5;
             """)
-        citations_posted = self.cursor.fetchall()
 
         most_cited_string = self.construct_data_string(most_cited)
         citations_posted_string = self.construct_data_string(citations_posted)

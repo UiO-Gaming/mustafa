@@ -17,15 +17,20 @@ class MCWhitelist(commands.Cog):
         """
 
         self.bot = bot
-        self.cursor = self.bot.db_connection.cursor()
-        self.init_db()
 
-    def init_db(self):
+    async def cog_load(self):
+        """
+        Set up the database before the cog is used
+        """
+
+        await self.init_db()
+
+    async def init_db(self):
         """
         Create the necessary tables for the mc_whitelist cog to work
         """
 
-        self.cursor.execute("""
+        await self.bot.db.execute("""
             CREATE TABLE IF NOT EXISTS mc_whitelist (
                 discord_id BIGINT PRIMARY KEY,
                 minecraft_id TEXT NOT NULL
@@ -61,15 +66,14 @@ class MCWhitelist(commands.Cog):
             data = await response.json(content_type=None)
 
         # Check if the discord user or minecraft user is in the db
-        self.cursor.execute(
+        if await self.bot.db.fetchone(
             """
             SELECT *
             FROM mc_whitelist
             WHERE minecraft_id = %s OR discord_id = %s
             """,
             (data["id"], interaction.user.id),
-        )
-        if self.cursor.fetchone():
+        ):
             return await interaction.response.send_message(
                 embed=embed_templates.error_warning(
                     "Du har allerede whitelisted en bruker eller så er brukeren du oppga whitelisted"
@@ -92,7 +96,7 @@ class MCWhitelist(commands.Cog):
             )
 
         # Add user to db
-        self.cursor.execute(
+        await self.bot.db.execute(
             """
             INSERT INTO mc_whitelist (discord_id, minecraft_id)
             VALUES (%s, %s)
@@ -119,7 +123,7 @@ class MCWhitelist(commands.Cog):
         """
 
         # Check if the discord user is in the db
-        self.cursor.execute(
+        result = await self.bot.db.fetchone(
             """
             SELECT *
             FROM mc_whitelist
@@ -127,7 +131,7 @@ class MCWhitelist(commands.Cog):
             """,
             (interaction.user.id,),
         )
-        if not (result := self.cursor.fetchone()):
+        if not result:
             return await interaction.response.send_message(
                 embed=embed_templates.error_warning("Du har ikke en whitelisted bruker på vår minecraftserver")
             )
@@ -149,7 +153,7 @@ class MCWhitelist(commands.Cog):
             )
 
         # Remove user from db
-        self.cursor.execute(
+        await self.bot.db.execute(
             """
             DELETE FROM mc_whitelist
             WHERE discord_id = %s

@@ -23,22 +23,25 @@ class Streak(commands.Cog):
 
         self.bot = bot
 
-        self.cursor = self.bot.db_connection.cursor()
-        self.init_db()
-
         # Cache to avoid having to insert to the db for every message
         self.streak_cache = {}
-        self.populate_cache()
 
+    async def cog_load(self):
+        """
+        Set up the database before the cog is used
+        """
+
+        await self.init_db()
+        await self.populate_cache()
         self.streak_check.start()
         self.insert_cache_loop.start()
 
-    def init_db(self):
+    async def init_db(self):
         """
         Create the necessary tables for the streak cog to work
         """
 
-        self.cursor.execute("""
+        await self.bot.db.execute("""
             CREATE TABLE IF NOT EXISTS streak (
                 discord_id BIGINT PRIMARY KEY,
                 streak_start_id TEXT NOT NULL,
@@ -52,18 +55,16 @@ class Streak(commands.Cog):
         self.insert_cache_loop.cancel()
         self.streak_check.cancel()
         await self.insert_cache()
-        self.cursor.close()
 
-    def populate_cache(self):
+    async def populate_cache(self):
         """
         Populate the cache with the current streaks
         """
 
-        self.cursor.execute("""
+        streaks = await self.bot.db.fetchall("""
             SELECT *
             FROM streak;
             """)
-        streaks = self.cursor.fetchall()
 
         for streak in streaks:
             self.streak_cache[streak[0]] = {
@@ -111,23 +112,29 @@ class Streak(commands.Cog):
 
         self.bot.logger.info("Inserting cache into database")
 
-        # Insert into database
-        for user_id, user_data in self.streak_cache.items():
-            self.cursor.execute(
-                """
-                INSERT INTO streak (discord_id, streak_start_id, streak_start_time, latest_post_time)
-                VALUES (%s, %s, %s, %s)
-                ON CONFLICT (discord_id) DO UPDATE
-                SET latest_post_time = %s;
-                """,
-                (
-                    user_id,
-                    user_data["first_post_id"],
-                    user_data["first_post_time"],
-                    user_data["latest_post_time"],
-                    user_data["latest_post_time"],
-                ),
+        # Snapshot the cache before awaiting, since new messages can change it while we wait for the database
+        rows = [
+            (
+                user_id,
+                user_data["first_post_id"],
+                user_data["first_post_time"],
+                user_data["latest_post_time"],
+                user_data["latest_post_time"],
             )
+            for user_id, user_data in self.streak_cache.items()
+        ]
+        if not rows:
+            return
+
+        await self.bot.db.executemany(
+            """
+            INSERT INTO streak (discord_id, streak_start_id, streak_start_time, latest_post_time)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (discord_id) DO UPDATE
+            SET latest_post_time = %s;
+            """,
+            rows,
+        )
 
     @tasks.loop(time=misc_utils.MIDNIGHT)
     @misc_utils.log_errors
@@ -142,17 +149,16 @@ class Streak(commands.Cog):
         if self.streak_cache:
             await self.insert_cache()
 
-        self.cursor.execute("""
+        streaks = await self.bot.db.fetchall("""
             SELECT discord_id, latest_post_time
             FROM streak;
             """)
-        streaks = self.cursor.fetchall()
 
         for streak in streaks:
             if (datetime.now() - streak[1]).days >= 1:
                 self.bot.logger.info(f"User {streak[0]} lost their streak")
                 self.streak_cache.pop(streak[0])
-                self.cursor.execute(
+                await self.bot.db.execute(
                     """
                     DELETE FROM streak
                     WHERE discord_id = %s;
@@ -180,7 +186,7 @@ class Streak(commands.Cog):
         if not bruker:
             bruker = interaction.user
 
-        self.cursor.execute(
+        streak = await self.bot.db.fetchone(
             """
             SELECT streak_start_id, streak_start_time::timestamptz
             FROM streak
@@ -188,7 +194,6 @@ class Streak(commands.Cog):
             """,
             (bruker.id,),
         )
-        streak = self.cursor.fetchone()
 
         if not streak:
             return await interaction.followup.send(embed=embed_templates.error_warning("Brukeren har ikke noen streak"))
@@ -231,12 +236,11 @@ class Streak(commands.Cog):
 
         await interaction.response.defer()
 
-        self.cursor.execute("""
+        streaks = await self.bot.db.fetchall("""
             SELECT discord_id, streak_start_time
             FROM streak
             ORDER BY streak_start_time;
             """)
-        streaks = self.cursor.fetchall()
 
         if not streaks:
             return await interaction.followup.send(embed=embed_templates.error_warning("Ingen har noen streak enda"))
