@@ -210,10 +210,54 @@ class WordCloud(commands.Cog):
 
         return tokens
 
+    MIN_WORD_LENGTH = 3
+
+    @staticmethod
+    def filter_words() -> set[str]:
+        """
+        Returns
+        ----------
+        set[str]: Norwegian and english words too common to include in a wordcloud
+        """
+
+        return set(stopwords.words("norwegian") + stopwords.words("english"))
+
+    @staticmethod
+    def render_wordcloud(max_words: int, allow_bigrams: bool, generate: callable) -> BytesIO:
+        """
+        Creates a wordcloud, fills it using the given function and renders it to a PNG
+
+        Parameters
+        ----------
+        max_words (int): Maximum number of words to include in the wordcloud
+        allow_bigrams (bool): Whether to allow bigrams in the wordcloud
+        generate (callable): Function that takes the WordCloud object and fills it with words
+
+        Returns
+        ----------
+        BytesIO: BytesIO object containing the wordcloud image
+        """
+
+        mask = np.array(Image.open("./src/assets/word_cloud_mask.png"))
+        wc = WCloud(
+            max_words=max_words,
+            mask=mask,
+            repeat=False,
+            stopwords=WordCloud.filter_words(),
+            min_word_length=WordCloud.MIN_WORD_LENGTH,
+            collocations=allow_bigrams,
+        )
+        generate(wc)
+
+        b = BytesIO()
+        wc.to_image().save(b, "png")
+        b.seek(0)
+        return b
+
     @staticmethod
     def generate_wordcloud(text: str, max_words: int = 4000, allow_bigrams: bool = False) -> BytesIO:
         """
-        Generates a wordcloud
+        Generates a wordcloud from text
 
         Parameters
         ----------
@@ -226,28 +270,30 @@ class WordCloud(commands.Cog):
         BytesIO: BytesIO object containing the wordcloud image
         """
 
-        filter_words = set(stopwords.words("norwegian") + stopwords.words("english"))
-        mask = np.array(Image.open("./src/assets/word_cloud_mask.png"))
+        return WordCloud.render_wordcloud(max_words, allow_bigrams, lambda wc: wc.generate(text))
 
-        wc = WCloud(
-            max_words=max_words,
-            mask=mask,
-            repeat=False,
-            stopwords=filter_words,
-            min_word_length=3,
-            collocations=allow_bigrams,
-        )
-        wc.process_text(text)
-        wc.generate(text)
+    @staticmethod
+    def generate_wordcloud_from_frequencies(frequencies: dict[str, int], max_words: int = 4000) -> BytesIO:
+        """
+        Generates a wordcloud from word frequencies, applying the same filtering as for text
 
-        # Color the wordcloud based on the mask
-        # wc.recolor(color_func=ImageColorGenerator(mask))
+        Parameters
+        ----------
+        frequencies (dict[str, int]): How many times each word has been used
+        max_words (int): Maximum number of words to include in the wordcloud. Defaults to 4000
 
-        img = wc.to_image()
-        b = BytesIO()
-        img.save(b, "png")
-        b.seek(0)
-        return b
+        Returns
+        ----------
+        BytesIO: BytesIO object containing the wordcloud image
+        """
+
+        filter_words = WordCloud.filter_words()
+        frequencies = {
+            word: count
+            for word, count in frequencies.items()
+            if len(word) >= WordCloud.MIN_WORD_LENGTH and word not in filter_words and not word.isdigit()
+        }
+        return WordCloud.render_wordcloud(max_words, False, lambda wc: wc.generate_from_frequencies(frequencies))
 
     wordcloud_group = app_commands.Group(
         name="ordsky", description="Generer en ordsky basert på dine mest frekvente sagte ord"
@@ -419,13 +465,7 @@ class WordCloud(commands.Cog):
         )
         tracked_since = discord.utils.snowflake_time(self.cursor.fetchone()[0])
 
-        # Converts the raw SQL results tuple to a string where
-        # each word occurs the x number of frequency that is provided
-        # Having to reconstruct the data this way is probably not optimal
-        text = " ".join(list(itertools.chain(*([word] * count for (word, count) in results))))
-
-        # Generate word cloud
-        generation_task = functools.partial(WordCloud.generate_wordcloud, text)
+        generation_task = functools.partial(WordCloud.generate_wordcloud_from_frequencies, dict(results))
         word_cloud = await self.bot.loop.run_in_executor(None, generation_task)
 
         word_cloud_file = discord.File(word_cloud, filename=f"wordcloud_{interaction.user.id}.png")
