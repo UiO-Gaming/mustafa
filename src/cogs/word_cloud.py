@@ -489,7 +489,7 @@ class WordCloud(commands.Cog):
                 # Limit search to half of requested messages to avoid rate limits
                 # We assume we can still fetch enough tokens to reach the requested amount
                 async for message in channel.history(limit=int(antall / 2)):
-                    if not self.can_count_message(message):
+                    if message.author.id != interaction.user.id or not self.can_count_message(message):
                         continue
 
                     filtered_msg = " ".join(self.tokenize(message.clean_content))
