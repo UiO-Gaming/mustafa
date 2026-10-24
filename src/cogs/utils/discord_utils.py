@@ -197,7 +197,8 @@ class LobbyView(discord.ui.View):
         self.bot = bot
         self.message: discord.Message | None = None
 
-        self.add_item(_KickSelectMenu(self))
+        self.kick_menu = _KickSelectMenu(self)
+        self.add_item(self.kick_menu)
 
     async def on_timeout(self):
         await self.end_lobby()
@@ -213,9 +214,7 @@ class LobbyView(discord.ui.View):
             item.disabled = True
 
     async def rerender_players(self, interaction: discord.Interaction):
-        self.children[-1].options = [
-            discord.SelectOption(label=p.display_name, value=str(p.id), emoji="🔨") for p in self.lobby.players
-        ]
+        self.kick_menu.update_options()
         embed = interaction.message.embeds[0].set_field_at(
             0,
             name=f"Spillere ({len(self.lobby.players)})",
@@ -299,24 +298,20 @@ class LobbyView(discord.ui.View):
 class _KickSelectMenu(discord.ui.Select):
     def __init__(self, parent_view: LobbyView):
         self.parent_view = parent_view
-        options = [
+        super().__init__(placeholder="Kick en spiller", max_values=1, min_values=1)
+        self.update_options()
+
+    def update_options(self):
+        """
+        Lists the lobby's current players as options
+        """
+
+        self.options = [
             discord.SelectOption(
                 label=p.display_name, value=str(p.id), emoji="🔨", description=f"Kick {p.display_name}"
             )
             for p in self.parent_view.lobby.players
         ]
-        super().__init__(placeholder="Kick en spiller", max_values=1, min_values=1, options=options)
-
-    # TODO: DRY
-    async def rerender_players(self, interaction: discord.Interaction):
-        self.options = [
-            discord.SelectOption(label=p.display_name, value=str(p.id), emoji="🔨")
-            for p in self.parent_view.lobby.players
-        ]
-        embed = interaction.message.embeds[0].set_field_at(
-            0, name="Spillere", value="\n".join([f"* {p.mention}" for p in self.parent_view.lobby.players])
-        )
-        await interaction.message.edit(embed=embed, view=self.parent_view)
 
     async def callback(self, interaction: discord.Interaction):
         if interaction.user != self.parent_view.lobby.host:
@@ -338,7 +333,7 @@ class _KickSelectMenu(discord.ui.Select):
                 self.parent_view.lobby.players.pop(i)
                 break
 
-        await self.rerender_players(interaction)
+        await self.parent_view.rerender_players(interaction)
 
         embed = embed_templates.success("Brukeren har blitt sparket fra lobbyen")
         await interaction.response.send_message(embed=embed, ephemeral=True, delete_after=5)

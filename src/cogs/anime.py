@@ -147,6 +147,26 @@ class Anime(commands.Cog):
         }
         return statuses.get(status, status)
 
+    def get_status_stat(self, statuses: list[dict], status: str, stat: str = "count") -> int:
+        """
+        Gets a statistic for one list status from a user's Anilist statistics
+
+        Parameters
+        ----------
+        statuses (list[dict]): The statuses statistics returned from the Anilist API
+        status (str): The list status, e.g. COMPLETED or PLANNING
+        stat (str): The statistic to get. Defaults to count
+
+        Returns
+        ----------
+        (int): The statistic. 0 if the user has nothing with that status
+        """
+
+        for entry in statuses:
+            if entry["status"] == status:
+                return entry[stat]
+        return 0
+
     def is_nsfw_channel(self, interaction: discord.Interaction) -> bool:
         """
         Checks whether the interaction's channel is age-restricted. DMs are never treated as NSFW
@@ -265,31 +285,40 @@ class Anime(commands.Cog):
 
         return "\n".join(favortie_entities)
 
-    def construct_release_schedule_string(self, numbers: dict) -> str:
+    def format_fuzzy_date(self, date: dict) -> str:
+        """
+        Formats an Anilist FuzzyDate, where any part may be missing
+
+        Parameters
+        ----------
+        date (dict): The date with the keys year, month and day returned from the Anilist API
+
+        Returns
+        ----------
+        (str): A Discord timestamp if the date is complete, otherwise day.month.year with ? for missing parts
+        """
+
+        year, month, day = date.get("year"), date.get("month"), date.get("day")
+        if year and month and day:
+            return discord.utils.format_dt(datetime(year, month, day), style="d")
+        return f"{day or '?'}.{month or '?'}.{year or '?'}"
+
+    def construct_release_schedule_string(self, start_date: dict, end_date: dict) -> str:
         """
         Constructs a string with the media's release schedule
 
         Parameters
         ----------
-        numbers (dict): dict containing release date and end date
+        start_date (dict): The release date returned from the Anilist API
+        end_date (dict): The end date returned from the Anilist API
 
         Returns
         ----------
         (str): The constructed string
         """
 
-        # Release and end date formatting
-        if numbers["start_day"] != "?" and numbers["start_month"] != "?" and numbers["start_year"] != "?":
-            release_date = datetime(numbers["start_year"], numbers["start_month"], numbers["start_day"])
-            release_date = discord.utils.format_dt(release_date, style="d")
-        else:
-            release_date = f'{numbers["start_day"]}.{numbers["start_month"]}.{numbers["start_year"]}'
-
-        if numbers["end_day"] != "?" and numbers["end_month"] != "?" and numbers["end_year"] != "?":
-            end_date = datetime(numbers["end_year"], numbers["end_month"], numbers["end_day"])
-            end_date = discord.utils.format_dt(end_date, style="d")
-        else:
-            end_date = f'{numbers["end_day"]}.{numbers["end_month"]}.{numbers["end_year"]}'
+        release_date = self.format_fuzzy_date(start_date)
+        end_date = self.format_fuzzy_date(end_date)
 
         if release_date == end_date:
             date = release_date
@@ -396,21 +425,8 @@ class Anime(commands.Cog):
         chapters_read = data["statistics"]["manga"]["chaptersRead"]
         color = self.convert_color(data["options"]["profileColor"])
 
-        anime_statuses = {
-            status["status"]: {"count": status["count"]} for status in data["statistics"]["anime"]["statuses"]
-        }
-        manga_statuses = {
-            status["status"]: {"count": status["count"]} for status in data["statistics"]["manga"]["statuses"]
-        }
-
-        try:
-            anime_completed = anime_statuses["COMPLETED"]["count"]
-        except KeyError:
-            anime_completed = 0
-        try:
-            manga_completed = manga_statuses["COMPLETED"]["count"]
-        except KeyError:
-            manga_completed = 0
+        anime_completed = self.get_status_stat(data["statistics"]["anime"]["statuses"], "COMPLETED")
+        manga_completed = self.get_status_stat(data["statistics"]["manga"]["statuses"], "COMPLETED")
 
         favourite_anime = self.construct_favorite_media_string(data["favourites"]["anime"]["nodes"])
         favourite_manga = self.construct_favorite_media_string(data["favourites"]["manga"]["nodes"])
@@ -498,29 +514,12 @@ class Anime(commands.Cog):
         episodes_watched = data["statistics"]["anime"]["episodesWatched"]
         color = self.convert_color(data["options"]["profileColor"])
 
-        statuses = {
-            status["status"]: {"count": status["count"], "minutes": status["minutesWatched"]}
-            for status in data["statistics"]["anime"]["statuses"]
-        }
-
-        try:
-            completed = statuses["COMPLETED"]["count"]
-        except KeyError:
-            completed = 0
-        try:
-            watching = statuses["CURRENT"]["count"]
-        except KeyError:
-            watching = 0
-        try:
-            planning = statuses["PLANNING"]["count"]
-            planning_days = round(statuses["PLANNING"]["minutes"] / 1440, 1)
-        except KeyError:
-            planning = 0
-            planning_days = 0
-        try:
-            dropped = statuses["DROPPED"]["count"]
-        except KeyError:
-            dropped = 0
+        statuses = data["statistics"]["anime"]["statuses"]
+        completed = self.get_status_stat(statuses, "COMPLETED")
+        watching = self.get_status_stat(statuses, "CURRENT")
+        planning = self.get_status_stat(statuses, "PLANNING")
+        planning_days = round(self.get_status_stat(statuses, "PLANNING", "minutesWatched") / 1440, 1)
+        dropped = self.get_status_stat(statuses, "DROPPED")
 
         anime_mean_score = data["statistics"]["anime"]["meanScore"]
         if not anime_mean_score:
@@ -608,29 +607,12 @@ class Anime(commands.Cog):
         volumes_read = data["statistics"]["manga"]["volumesRead"]
         color = self.convert_color(data["options"]["profileColor"])
 
-        statuses = {
-            status["status"]: {"count": status["count"], "chapters": status["chaptersRead"]}
-            for status in data["statistics"]["manga"]["statuses"]
-        }
-
-        try:
-            completed = statuses["COMPLETED"]["count"]
-        except KeyError:
-            completed = 0
-        try:
-            reading = statuses["CURRENT"]["count"]
-        except KeyError:
-            reading = 0
-        try:
-            planning = statuses["PLANNING"]["count"]
-            planning_chapters = statuses["PLANNING"]["chapters"]
-        except KeyError:
-            planning = 0
-            planning_chapters = 0
-        try:
-            dropped = statuses["DROPPED"]["count"]
-        except KeyError:
-            dropped = 0
+        statuses = data["statistics"]["manga"]["statuses"]
+        completed = self.get_status_stat(statuses, "COMPLETED")
+        reading = self.get_status_stat(statuses, "CURRENT")
+        planning = self.get_status_stat(statuses, "PLANNING")
+        planning_chapters = self.get_status_stat(statuses, "PLANNING", "chaptersRead")
+        dropped = self.get_status_stat(statuses, "DROPPED")
 
         manga_mean_score = data["statistics"]["manga"]["meanScore"]
         if manga_mean_score == 0:
@@ -767,25 +749,14 @@ class Anime(commands.Cog):
         episodes = data["episodes"]
         duration = data["duration"]
 
-        numbers = {
-            "episodes": episodes,
-            "duration": duration,
-            "start_day": data["startDate"].get("day") if data["startDate"].get("day") else "?",
-            "start_month": data["startDate"].get("month") if data["startDate"].get("month") else "?",
-            "start_year": data["startDate"].get("year") if data["startDate"].get("year") else "?",
-            "end_day": data["endDate"].get("day") if data["endDate"].get("day") else "?",
-            "end_month": data["endDate"].get("month") if data["endDate"].get("month") else "?",
-            "end_year": data["endDate"].get("year") if data["endDate"].get("year") else "?",
-        }
-
-        date = self.construct_release_schedule_string(numbers)
+        date = self.construct_release_schedule_string(data["startDate"], data["endDate"])
 
         length_string = ""
-        if numbers["duration"] == 1:
+        if duration == 1:
             length_string += "minutt "
         else:
             length_string += "minutter "
-        if numbers["episodes"] == 1:
+        if episodes == 1:
             length_string += "lang"
         else:
             length_string += "lange"
@@ -918,20 +889,12 @@ class Anime(commands.Cog):
             staff_url = staff_member["node"]["siteUrl"]
             staff_string += f"[{staff_first_name} {staff_last_name} ({staff_native_name})]({staff_url})\n"
 
-        numbers = {
-            "chapters": data["chapters"],
-            "volumes": data["volumes"],
-            "start_day": data["startDate"].get("day") if data["startDate"].get("day") else "?",
-            "start_month": data["startDate"].get("month") if data["startDate"].get("month") else "?",
-            "start_year": data["startDate"].get("year") if data["startDate"].get("year") else "?",
-            "end_day": data["endDate"].get("day") if data["endDate"].get("day") else "?",
-            "end_month": data["endDate"].get("month") if data["endDate"].get("month") else "?",
-            "end_year": data["endDate"].get("year") if data["endDate"].get("year") else "?",
-        }
-        date = self.construct_release_schedule_string(numbers)
+        chapters = data["chapters"]
+        volumes = data["volumes"]
+        date = self.construct_release_schedule_string(data["startDate"], data["endDate"])
 
         chapters_string = ""
-        if numbers["chapters"] == 1:
+        if chapters == 1:
             chapters_string += "kapittel"
         else:
             chapters_string += "kapitler"
@@ -949,7 +912,7 @@ class Anime(commands.Cog):
         if staff_string:
             embed.add_field(name="Laget av", value=staff_string)
         embed.add_field(name="Utgivelsesdato", value=date)
-        embed.add_field(name="Lengde", value=f'{numbers["chapters"]} {chapters_string}\n{numbers["volumes"]} volum')
+        embed.add_field(name="Lengde", value=f"{chapters} {chapters_string}\n{volumes} volum")
         if mean_score:
             embed.add_field(name="Gj.snittsvurdering", value=f"{mean_score}/100")
         embed.add_field(name="Sjangere", value=genres)

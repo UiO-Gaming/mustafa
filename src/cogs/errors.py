@@ -88,7 +88,8 @@ class Errors(commands.Cog):
         if isinstance(error, send_help):
             return await ctx.send_help(ctx.command)
 
-        elif isinstance(error, commands.BotMissingPermissions):
+        f = None
+        if isinstance(error, commands.BotMissingPermissions):
             embed = self.error_missing_perms(error.missing_permissions, "Jeg")
         elif isinstance(error, commands.MissingPermissions):
             embed = self.error_missing_perms(error.missing_permissions, "Du")
@@ -106,12 +107,6 @@ class Errors(commands.Cog):
             embed = embed_templates.error_fatal("En ukjent feil oppstod!")
             f = discord.File("./src/assets/edb.png")
             embed.set_image(url="attachment://edb.png")
-
-        # Yeah, this fucking sucks but I want my beautiful edb picture :_;
-        try:
-            f
-        except NameError:
-            f = None
 
         try:
             await ctx.reply(embed=embed, file=f)
