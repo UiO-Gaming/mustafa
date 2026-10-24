@@ -334,7 +334,6 @@ class Birthday(commands.Cog):
         )
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.guild_only()
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @birthday_group.command(name="kommende", description="Viser en liste over de kommende bursdager i serveren")
@@ -347,6 +346,11 @@ class Birthday(commands.Cog):
         interaction (discord.Interaction): Slash command context object
         """
 
+        if not interaction.guild:
+            return await interaction.response.send_message(
+                embed=embed_templates.error_warning("Denne kommandoen kan bare brukes i en server"), ephemeral=True
+            )
+
         await interaction.response.defer()
 
         next_birthdays = self.fetch_next_birthdays()
@@ -358,9 +362,7 @@ class Birthday(commands.Cog):
         for user in next_birthdays:
             user_id, _, next_birthday = user
             try:
-                discord_user = await interaction.guild.fetch_member(
-                    user_id
-                )  # Guild should always be available because of guild_only
+                discord_user = await interaction.guild.fetch_member(user_id)
             except (discord.NotFound, discord.HTTPException):
                 continue
 
