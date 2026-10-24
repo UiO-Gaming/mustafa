@@ -80,7 +80,7 @@ class Errors(commands.Cog):
         # Ignored errors
         ignored_errors = (commands.CommandNotFound, commands.DisabledCommand)
         if isinstance(error, ignored_errors):
-            self.bot.logger.info("Ignored error", error)
+            self.bot.logger.info(f"Ignored error: {error!r}")
             return
 
         # Errors that should prompt a help message
