@@ -210,11 +210,14 @@ class Misc(commands.Cog):
         år = datetime.now().year if not år else int(år)
 
         data = requests.get(f"https://date.nager.at/api/v3/publicholidays/{år}/{land}", timeout=10)
-        if data.status_code != 200:
+        if data.status_code not in (200, 204):
             embed = embed_templates.error_warning("Ugyldig land\nHusk å bruke landskoder\n" + "For eksempel: `NO`")
             return await interaction.response.send_message(embed=embed)
 
-        data = data.json()
+        data = data.json() if data.status_code == 200 else []
+        if not data:
+            embed = embed_templates.error_warning(f"Fant ingen helligdager for `{land}` i {år}")
+            return await interaction.response.send_message(embed=embed)
 
         country = data[0]["countryCode"].lower()
 
