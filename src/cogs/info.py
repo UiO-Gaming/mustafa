@@ -499,8 +499,9 @@ class Info(commands.Cog):
             embed = embed_templates.error_warning("Denne kommandoen støtter bare serveremoji")
             return await interaction.response.send_message(embed=embed)
 
-        emoji = discord.utils.get(interaction.guild.emojis, name=emoji.name)
-        if not emoji:
+        try:
+            emoji = await interaction.guild.fetch_emoji(emoji.id)
+        except discord.NotFound:
             embed = embed_templates.error_warning("Emoji kunne ikke hentes. Den er muligens fra en annen server")
             return await interaction.response.send_message(embed=embed)
 
