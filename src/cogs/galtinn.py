@@ -111,7 +111,7 @@ class Galtinn(commands.Cog):
 
         embed = discord.Embed()
         embed.set_author(name=username)
-        embed.color = discord.Color.green() if last_membership["is_valid"] else discord.Color.red()
+        embed.color = discord.Color.green() if last_membership and last_membership["is_valid"] else discord.Color.red()
         if user["discord_profile"]:
             embed.description = f"<@{user['discord_profile']['discord_id']}>"
         embed.add_field(name="Medlem?", value=membership_status)
