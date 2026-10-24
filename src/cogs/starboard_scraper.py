@@ -199,7 +199,7 @@ class StarboardScraper(commands.Cog):
 
     async def cog_unload(self):
         self.bot.logger.info("Unloading cog")
-        self.star_check().cancel()
+        self.star_check.cancel()
         self.cursor.close()
 
 
