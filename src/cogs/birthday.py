@@ -316,7 +316,7 @@ class Birthday(commands.Cog):
 
         #  Next birthday information
         next_birthday = self.fetch_user_next_birthday(bruker.id)
-        next_birthday_days = (next_birthday - datetime.now()).days
+        next_birthday_days = (next_birthday.date() - datetime.now().date()).days
 
         # Japanese era
         japanese_era = EraDate.from_date(birthday).strftime("%-K%-y年")
