@@ -3,6 +3,7 @@ import json
 import random
 from datetime import datetime
 from datetime import timedelta
+from io import BytesIO
 from typing import override
 
 import cv2
@@ -121,13 +122,17 @@ class BingoGenerator:
         return player_cells
 
     @classmethod
-    async def generate_sheets(cls, players: list[discord.Member], bot: commands.Bot):
+    async def generate_sheets(cls, players: list[discord.Member], bot: commands.Bot) -> dict[str, bytes]:
         """
         Generate bingo sheets for each player
 
         Parameters
         ----------
-        players (list[str]): List of the player's discord IDs as strings
+        players (list[discord.Member]): The players to generate sheets for
+
+        Returns
+        ----------
+        (dict[str, bytes]): Each player's sheet as PNG data, keyed by their discord ID as a string
         """
 
         players = [str(p.id) for p in players]
@@ -141,8 +146,7 @@ class BingoGenerator:
         for player in players:
             player_sheets[player] = await cls.generate_sheet(sample_space[player], image)
 
-        for p, sheet in player_sheets.items():
-            cv2.imwrite(f"./src/assets/temp/{p}_bingo.png", sheet)
+        return {p: cv2.imencode(".png", sheet)[1].tobytes() for p, sheet in player_sheets.items()}
 
     @classmethod
     async def generate_sheet(cls, sample_space: list, image: np.ndarray):
@@ -192,16 +196,15 @@ class BingoView(LobbyView):
         )
         await interaction.response.send_message(content=mention_players, embed=embed)
 
-        await BingoGenerator.generate_sheets(self.lobby.players, self.bot)
+        sheets = await BingoGenerator.generate_sheets(self.lobby.players, self.bot)
         for player in self.lobby.players:
+            sheet = sheets[str(player.id)]
             try:
-                await player.send(file=discord.File(f"./src/assets/temp/{player.id}_bingo.png"))
+                await player.send(file=discord.File(BytesIO(sheet), filename=f"{player.id}_bingo.png"))
             except discord.Forbidden:
                 await interaction.followup.send(
                     f"{player.mention} har ikke åpnet DM-ene sine :angry:\nSender den her i stedet",
-                    file=discord.File(
-                        f"./src/assets/temp/{player.id}_bingo.png", filename=f"SPOILER_{player.id}_bingo.png"
-                    ),
+                    file=discord.File(BytesIO(sheet), filename=f"SPOILER_{player.id}_bingo.png"),
                 )
             finally:
                 await asyncio.sleep(1)

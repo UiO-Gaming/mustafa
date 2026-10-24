@@ -1,3 +1,5 @@
+from io import BytesIO
+
 import discord
 import graphviz
 import numpy as np
@@ -240,10 +242,8 @@ class UserFacts(commands.Cog):
             if user:
                 others.append((user, mbti))
 
-        self.create_mbti_graph((bruker, user_mbti), others)
-
-        with open(f"src/assets/temp/{bruker.id}_mbti.png", "rb") as f:
-            image = discord.File(f, filename=f"{bruker.id}_mbti.png")
+        graph_png = self.create_mbti_graph((bruker, user_mbti), others)
+        image = discord.File(BytesIO(graph_png), filename=f"{bruker.id}_mbti.png")
 
         embed.set_image(url=f"attachment://{bruker.id}_mbti.png")
         await interaction.followup.send(embed=embed, file=image)
@@ -359,7 +359,9 @@ class UserFacts(commands.Cog):
 
         return similarity_matrix
 
-    def create_mbti_graph(self, user_mbti: tuple[discord.Member, str], others: list[tuple[discord.Member, str]]):
+    def create_mbti_graph(
+        self, user_mbti: tuple[discord.Member, str], others: list[tuple[discord.Member, str]]
+    ) -> bytes:
         user, mbti = user_mbti
 
         # Create a Graphviz graph
@@ -382,7 +384,7 @@ class UserFacts(commands.Cog):
             graph.node(str(other_user.id), f"{other_user.display_name}\n{other_mbti}")
             graph.edge(str(user.id), str(other_user.id), len=str(edge_length))
 
-        graph.render(f"{user.id}_mbti", directory="./src/assets/temp", view=False, overwrite_source=True)
+        return graph.pipe(format="png")
 
 
 async def setup(bot: commands.Bot):

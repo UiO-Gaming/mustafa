@@ -1,4 +1,3 @@
-import os
 from dataclasses import dataclass
 from datetime import datetime
 from io import BytesIO
@@ -12,30 +11,19 @@ from .misc_utils import Paginator
 from .misc_utils import log_errors
 
 
-async def send_as_txt_file(interaction: discord.Interaction, content: str, file_path: str):
+async def send_as_txt_file(interaction: discord.Interaction, content: str, filename: str):
     """
-    Sends a string as a txt file and deletes the file afterwards
+    Sends a string as a txt file
 
     Parameters
     ----------
     interaction (discord.Interaction): Slash command context object
     content (str): String that's too long to send
-    file_path (str): Path to file
+    filename (str): Name of the file as shown in Discord
     """
 
-    # Create file
-    with open(file_path, "w", encoding="utf-8") as file:
-        file.write(content)
-
-    # Send file
-    txt_file = discord.File(file_path)
+    txt_file = discord.File(BytesIO(content.encode("utf-8")), filename=filename)
     await interaction.response.send_message(file=txt_file)
-
-    # Delete file
-    try:
-        os.remove(file_path)
-    except OSError:
-        pass
 
 
 async def get_file_bytesio(file: discord.Attachment | discord.Asset) -> BytesIO:
