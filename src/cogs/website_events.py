@@ -68,6 +68,9 @@ class WebsiteEvents(commands.Cog):
         event (discord.ScheduledEvent): The created event
         """
 
+        if event.guild_id != self.bot.guild_id:
+            return
+
         # Convert timezone to Europe/Oslo
         # We need to set a timezone unit before being able to convert it to another timezone
         # That's why this line is so fucking weird
@@ -106,6 +109,9 @@ class WebsiteEvents(commands.Cog):
         ----------
         event (discord.ScheduledEvent): The deleted event
         """
+
+        if event.guild_id != self.bot.guild_id:
+            return
 
         mutation = {"mutations": [{"delete": {"id": str(event.id)}}]}
 
