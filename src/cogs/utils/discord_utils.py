@@ -3,6 +3,7 @@ from datetime import datetime
 from io import BytesIO
 
 import discord
+import psycopg
 from discord.ext import commands
 from discord.ext import tasks
 
@@ -350,8 +351,60 @@ class TempVoiceHelper:
         """
 
         self.bot = bot
+        self.db = getattr(bot, "db", None)  # Channels are only remembered across restarts if there is a database
         self.temp_vc_channels = {}
+
+    async def start(self):
+        """
+        Create the table used to remember temporary channels across restarts and start the cleanup loop
+        """
+
+        if self.db:
+            await self.db.execute("""
+                CREATE TABLE IF NOT EXISTS tempvoice_channels (
+                    channel_id BIGINT PRIMARY KEY
+                );
+                """)
+
         self.check_temp_vc_channels.start()
+
+    async def remember(self, channel: discord.VoiceChannel):
+        """
+        Save a temporary channel so it can still be deleted if the bot restarts
+
+        Parameters
+        ----------
+        channel (discord.VoiceChannel): The temporary channel
+        """
+
+        if not self.db:
+            return
+
+        try:
+            await self.db.execute(
+                "INSERT INTO tempvoice_channels (channel_id) VALUES (%s) ON CONFLICT DO NOTHING", (channel.id,)
+            )
+        except psycopg.Error as e:
+            self.bot.logger.warning(
+                f"Failed to save temporary voice channel {channel}. It won't survive a restart: {e}"
+            )
+
+    async def forget(self, channel_id: int):
+        """
+        Remove a saved temporary channel
+
+        Parameters
+        ----------
+        channel_id (int): The ID of the temporary channel
+        """
+
+        if not self.db:
+            return
+
+        try:
+            await self.db.execute("DELETE FROM tempvoice_channels WHERE channel_id = %s", (channel_id,))
+        except psycopg.Error as e:
+            self.bot.logger.warning(f"Failed to remove saved temporary voice channel {channel_id}: {e}")
 
     async def on_voice_state_update(
         self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState
@@ -392,6 +445,37 @@ class TempVoiceHelper:
                     self.bot.logger.info(f"Deleted temporary voice channel {channel}")
                 finally:
                     del self.temp_vc_channels[channel]
+                    await self.forget(channel.id)
+
+    @check_temp_vc_channels.before_loop
+    async def restore_temp_vc_channels(self):
+        """
+        Pick up temporary channels created before the bot last stopped, so they still get deleted
+        """
+
+        await self.bot.wait_until_ready()
+
+        if not self.db:
+            return
+
+        try:
+            saved_channels = await self.db.fetchall("SELECT channel_id FROM tempvoice_channels")
+        except psycopg.Error as e:
+            self.bot.logger.warning(f"Failed to restore temporary voice channels: {e}")
+            return
+
+        restored = 0
+        for (channel_id,) in saved_channels:
+            if not (channel := self.bot.get_channel(channel_id)):
+                await self.forget(channel_id)
+                continue
+
+            now = datetime.now()
+            self.temp_vc_channels[channel] = {"created": now, "no_members_since": None if channel.members else now}
+            restored += 1
+
+        if restored:
+            self.bot.logger.info(f"Restored {restored} temporary voice channel(s) from the database")
 
     async def create_temp_voice(
         self, interaction: discord.Interaction, name: str, limit: int = 0
@@ -432,6 +516,7 @@ class TempVoiceHelper:
 
         now = datetime.now()
         self.temp_vc_channels[channel] = {"created": now, "no_members_since": now}
+        await self.remember(channel)
 
         try:
             await interaction.user.move_to(channel)

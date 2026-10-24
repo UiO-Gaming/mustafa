@@ -18,6 +18,12 @@ class TempVoice(commands.Cog):
 
         self.temp_voice_helper = TempVoiceHelper(bot)
 
+    async def cog_load(self):
+        await self.temp_voice_helper.start()
+
+    async def cog_unload(self):
+        self.temp_voice_helper.check_temp_vc_channels.cancel()
+
     @commands.Cog.listener()
     async def on_voice_state_update(
         self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState
