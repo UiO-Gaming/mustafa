@@ -19,6 +19,7 @@ from psycopg2.extras import execute_batch
 from wordcloud import WordCloud as WCloud  # Avoid naming conflicts with cog class name
 
 from cogs.utils import embed_templates
+from cogs.utils import misc_utils
 
 
 class WordCloud(commands.Cog):
@@ -128,6 +129,7 @@ class WordCloud(commands.Cog):
         self.word_freq_cache.clear()
 
     @tasks.loop(minutes=20)
+    @misc_utils.log_errors
     async def insert_cache_loop(self):
         """
         Clears and inserts word frequency cache into the database every 20 minutes

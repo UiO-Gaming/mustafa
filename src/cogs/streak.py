@@ -96,6 +96,7 @@ class Streak(commands.Cog):
             }
 
     @tasks.loop(minutes=10)
+    @misc_utils.log_errors
     async def insert_cache_loop(self):
         """
         Inserts cache into the database every 10 minutes
@@ -129,6 +130,7 @@ class Streak(commands.Cog):
             )
 
     @tasks.loop(time=misc_utils.MIDNIGHT)
+    @misc_utils.log_errors
     async def streak_check(self):
         """
         Check if anyone has lost their streak

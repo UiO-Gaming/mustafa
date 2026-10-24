@@ -188,6 +188,7 @@ class StarboardScraper(commands.Cog):
             self.bot.logger.error(f"Error during starboard scrape: {e}")
 
     @tasks.loop(time=misc_utils.MIDNIGHT)
+    @misc_utils.log_errors
     async def star_check(self):
         """
         Update DB with latest starboard data

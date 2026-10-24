@@ -7,6 +7,8 @@ import requests
 from discord.ext import commands
 from discord.ext import tasks
 
+from cogs.utils import misc_utils
+
 
 class Aurora(commands.Cog):
     """Aurora Borealis forecasts and alerts"""
@@ -71,6 +73,7 @@ class Aurora(commands.Cog):
         return most_likely_sighting
 
     @tasks.loop(minutes=60)
+    @misc_utils.log_errors
     async def aurora_alarm(self):
         """
         Checks if the aurora forecast is above 50% and sends a message to the aurora channel if it is

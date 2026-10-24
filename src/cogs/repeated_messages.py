@@ -24,6 +24,7 @@ class RepeatedMessages(commands.Cog):
         self.new_year.cancel()
 
     @tasks.loop(time=misc_utils.MIDNIGHT)
+    @misc_utils.log_errors
     async def fredag(self):
         """
         Sends a message on Friday at 00:00
@@ -56,6 +57,7 @@ class RepeatedMessages(commands.Cog):
         await channel.send("NU ÄR DET FREDAG!\n" + video)
 
     @tasks.loop(time=misc_utils.MIDNIGHT)
+    @misc_utils.log_errors
     async def mandag(self):
         """
         Sends a message on Monday at 00:00
@@ -71,6 +73,7 @@ class RepeatedMessages(commands.Cog):
         )
 
     @tasks.loop(time=misc_utils.MIDNIGHT)
+    @misc_utils.log_errors
     async def new_year(self):
         """
         Sends a message on New Year's Day at 00:00

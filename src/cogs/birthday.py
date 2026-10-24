@@ -47,6 +47,7 @@ class Birthday(commands.Cog):
     )
 
     @tasks.loop(time=misc_utils.MIDNIGHT)
+    @misc_utils.log_errors
     async def birthday_check(self):
         """
         Check if it's someone's birthday every day at midgnight and send a greeting if it is

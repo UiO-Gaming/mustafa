@@ -9,6 +9,7 @@ from discord.ext import tasks
 
 from . import embed_templates
 from .misc_utils import Paginator
+from .misc_utils import log_errors
 
 
 async def send_as_txt_file(interaction: discord.Interaction, content: str, file_path: str):
@@ -387,6 +388,7 @@ class TempVoiceHelper:
                 self.temp_vc_channels[channel]["no_members_since"] = None
 
     @tasks.loop(minutes=1)
+    @log_errors
     async def check_temp_vc_channels(self):
         """
         Check for temporary voice channels that have been inactive for 1 minute
