@@ -334,7 +334,7 @@ class _KickSelectMenu(discord.ui.Select):
             embed = embed_templates.error_warning("Bare hosten kan kicke spillere")
             return await interaction.response.send_message(embed=embed, ephemeral=True, delete_after=10)
 
-        if str(interaction.user.id) in interaction.data["values"][0]:
+        if str(interaction.user.id) == interaction.data["values"][0]:
             embed = embed_templates.error_warning("Du kan ikke kicke deg selv")
             return await interaction.response.send_message(embed=embed, ephemeral=True, delete_after=10)
 
