@@ -229,12 +229,14 @@ class UserFacts(commands.Cog):
 
         others = []
         for discord_id, mbti in results:
-            if user := self.bot.get_user(discord_id):
+            user = self.bot.get_user(discord_id)
+            if not user and interaction.guild:
+                try:
+                    user = await interaction.guild.fetch_member(discord_id)
+                except discord.NotFound:
+                    pass
+            if user:
                 others.append((user, mbti))
-            elif user := await interaction.guild.fetch_member(discord_id):
-                others.append((user, mbti))
-            else:
-                others.append((discord_id, mbti))
 
         self.create_mbti_graph((bruker, user_mbti), others)
 
