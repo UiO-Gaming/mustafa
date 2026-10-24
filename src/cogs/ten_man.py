@@ -57,7 +57,7 @@ class TenMan(commands.Cog):
                 )
 
         for lobby in self.active_lobbies.values():
-            if interaction.user.id in lobby.players:
+            if lobby.ends > datetime.now() and any(p.id == interaction.user.id for p in lobby.players):
                 return await interaction.response.send_message(
                     embed=embed_templates.error_warning(
                         "Du er allerede i en lobby",
