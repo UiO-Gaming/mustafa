@@ -544,9 +544,14 @@ class Info(commands.Cog):
                 embed = embed_templates.error_warning("Kunne ikke hente meldingen du svarte på")
                 return await ctx.reply(embed=embed)
 
-        sticker = await replied_message.guild.fetch_sticker(replied_message.stickers[0].id)
-        if not sticker:
-            embed = embed_templates.error_warning("Sticker kunne ikke hentes")
+        if not replied_message.stickers:
+            embed = embed_templates.error_warning("Meldingen du svarte på inneholder ikke en sticker")
+            return await ctx.reply(embed=embed)
+
+        try:
+            sticker = await replied_message.guild.fetch_sticker(replied_message.stickers[0].id)
+        except discord.NotFound:
+            embed = embed_templates.error_warning("Sticker kunne ikke hentes. Den er muligens fra en annen server")
             return await ctx.reply(embed=embed)
 
         embed = discord.Embed(title=sticker.name, description=f"ID: {sticker.id}\n\n{sticker.description}")
