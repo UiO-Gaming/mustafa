@@ -1,6 +1,8 @@
 import asyncio
 import signal
+from os import environ
 from os import listdir
+from os.path import realpath
 from time import time
 from zoneinfo import ZoneInfo
 
@@ -88,6 +90,7 @@ class Bot(commands.Bot):
         self.emoji = config.get("emoji", {})
         self.misc = config.get("misc", {})
         self.timezone = ZoneInfo(tz) if (tz := config.get("timezone")) else None  # None means the system timezone
+        self.timezone_name = tz or self.system_timezone_name()
 
     async def setup_hook(self):
         self.http_session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15))
@@ -120,13 +123,32 @@ class Bot(commands.Bot):
         if self.db_pool:
             await self.db_pool.close()
 
-    @staticmethod
-    async def configure_db_connection(conn):
+    async def configure_db_connection(self, conn):
         """
-        Sets up every new database connection the same way the old single connection was set up
+        Sets the session time zone of every new database connection to the bot's time zone
         """
 
-        await conn.execute("SET timezone TO 'Europe/Oslo'")
+        if self.timezone_name:
+            await conn.execute("SELECT set_config('timezone', %s, false)", (self.timezone_name,))
+
+    @staticmethod
+    def system_timezone_name() -> str | None:
+        """
+        Get the IANA name of the system time zone
+
+        Returns
+        ----------
+        (str | None): The time zone name. None if it can't be determined
+        """
+
+        if tz := environ.get("TZ"):
+            return tz.removeprefix(":")
+
+        localtime = realpath("/etc/localtime")
+        if "/zoneinfo/" in localtime:
+            return localtime.split("/zoneinfo/", 1)[1]
+
+        return None
 
     def check_credentials(self, credentials: dict, dependant_cogs: set[str]) -> bool:
         """
