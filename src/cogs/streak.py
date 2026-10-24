@@ -1,6 +1,3 @@
-from datetime import datetime
-from datetime import timezone
-
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -45,9 +42,26 @@ class Streak(commands.Cog):
             CREATE TABLE IF NOT EXISTS streak (
                 discord_id BIGINT PRIMARY KEY,
                 streak_start_id TEXT NOT NULL,
-                streak_start_time timestamp NOT NULL,
-                latest_post_time timestamp NOT NULL
+                streak_start_time timestamptz NOT NULL,
+                latest_post_time timestamptz NOT NULL
             );
+            """)
+
+        await self.bot.db.execute("""
+            DO $$
+            BEGIN
+                IF (
+                    SELECT data_type
+                    FROM information_schema.columns
+                    WHERE table_schema = current_schema() AND table_name = 'streak' AND column_name = 'latest_post_time'
+                ) = 'timestamp without time zone' THEN
+                    ALTER TABLE streak
+                        ALTER COLUMN streak_start_time TYPE timestamptz
+                            USING streak_start_time AT TIME ZONE 'Europe/Oslo',
+                        ALTER COLUMN latest_post_time TYPE timestamptz
+                            USING latest_post_time AT TIME ZONE 'Europe/Oslo';
+                END IF;
+            END $$;
             """)
 
     async def cog_unload(self):
@@ -62,7 +76,7 @@ class Streak(commands.Cog):
         """
 
         streaks = await self.bot.db.fetchall("""
-            SELECT discord_id, streak_start_id, streak_start_time::timestamptz, latest_post_time::timestamptz
+            SELECT discord_id, streak_start_id, streak_start_time, latest_post_time
             FROM streak;
             """)
 
@@ -125,7 +139,7 @@ class Streak(commands.Cog):
 
         await self.bot.wait_until_ready()
 
-        since = datetime.now().astimezone(self.bot.timezone).replace(hour=0, minute=0, second=0, microsecond=0)
+        since = discord.utils.utcnow().astimezone(self.bot.timezone).replace(hour=0, minute=0, second=0, microsecond=0)
         counted = 0
         for guild in self.bot.guilds:
             channels = [c for c in guild.channels if isinstance(c, discord.abc.Messageable)] + list(guild.threads)
@@ -195,7 +209,7 @@ class Streak(commands.Cog):
             """)
 
         for streak in streaks:
-            if (datetime.now() - streak[1]).days >= 1:
+            if (discord.utils.utcnow() - streak[1]).days >= 1:
                 self.bot.logger.info(f"User {streak[0]} lost their streak")
                 self.streak_cache.pop(streak[0])
                 await self.bot.db.execute(
@@ -228,7 +242,7 @@ class Streak(commands.Cog):
 
         streak = await self.bot.db.fetchone(
             """
-            SELECT streak_start_id, streak_start_time::timestamptz
+            SELECT streak_start_id, streak_start_time
             FROM streak
             WHERE discord_id = %s;
             """,
@@ -253,7 +267,7 @@ class Streak(commands.Cog):
             streak_msg_time = streak_message.created_at
             streak_msg_link = f"[Meldingen]({streak_message.jump_url})"
 
-        streak_days = (datetime.now(timezone.utc) - streak_msg_time).days
+        streak_days = (discord.utils.utcnow() - streak_msg_time).days
         streak_msg_timestamp = discord.utils.format_dt(streak_msg_time, "F")
 
         embed = discord.Embed(title="Streak", description=bruker.mention)
@@ -286,7 +300,7 @@ class Streak(commands.Cog):
             return await interaction.followup.send(embed=embed_templates.error_warning("Ingen har noen streak enda"))
 
         streaks_formatted = [
-            f"**#{s[0]+1}** <@{s[1][0]}> - {(datetime.now() - s[1][1]).days} dager" for s in enumerate(streaks)
+            f"**#{s[0]+1}** <@{s[1][0]}> - {(discord.utils.utcnow() - s[1][1]).days} dager" for s in enumerate(streaks)
         ]
 
         paginator = misc_utils.Paginator(streaks_formatted)
