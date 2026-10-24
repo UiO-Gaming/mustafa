@@ -194,7 +194,7 @@ class Info(commands.Cog):
             "low": "e-post",
             "medium": "e-post, registrert i 5 min",
             "high": "e-post, registrert i 5 min, medlem i 10 min",
-            "extreme": "telefon",
+            "highest": "telefon",
         }
         verification = verification_level[str(interaction.guild.verification_level)]
 
