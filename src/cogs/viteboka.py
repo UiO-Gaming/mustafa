@@ -1,7 +1,7 @@
 import aiohttp
 import discord
 import pypandoc
-import regex  # This should be redundant as re now supports recursive patterns, but apparently it doesn't
+import regex
 from discord import app_commands
 from discord.ext import commands
 
