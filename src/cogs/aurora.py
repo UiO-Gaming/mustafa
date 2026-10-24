@@ -21,7 +21,7 @@ class Aurora(commands.Cog):
 
         self.bot = bot
 
-        self.notified = datetime(2000, 9, 11)  # Used to prevent spamming aurora alerts
+        self.notified = datetime(2000, 9, 11, tzinfo=timezone.utc)  # Used to prevent spamming aurora alerts
         self.aurora_alarm.start()
 
     def cog_unload(self):
@@ -46,7 +46,7 @@ class Aurora(commands.Cog):
                 self.bot.logger.warning("Failed to get forecast data")
                 return None
 
-            now = datetime.now(timezone.utc)
+            now = discord.utils.utcnow()
             valid_sightings = []
             for interval in data["shortIntervals"]:
                 start = datetime.fromisoformat(interval["start"])
@@ -82,7 +82,7 @@ class Aurora(commands.Cog):
 
         await self.bot.wait_until_ready()  # Make sure we can fetch the #general channel
 
-        if datetime.now() - self.notified < timedelta(hours=12):
+        if discord.utils.utcnow() - self.notified < timedelta(hours=12):
             self.bot.logger.info(
                 "aurora_alarm: Not sending aurora alert because it has been less than 12 hours since last alert"
             )
@@ -121,7 +121,7 @@ class Aurora(commands.Cog):
             content="SJANSE FOR NORDLYS AKKURAT NÅ PÅ NEUF! Se ut vinduet istedenfor på den dumme skjermen din",
             embed=embed,
         )
-        self.notified = datetime.now()  # Update the last notification time
+        self.notified = discord.utils.utcnow()  # Update the last notification time
 
 
 async def setup(bot: commands.Bot):

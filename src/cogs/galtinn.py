@@ -5,6 +5,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from cogs.utils import embed_templates
+from cogs.utils import misc_utils
 
 
 class Galtinn(commands.Cog):
@@ -113,6 +114,7 @@ class Galtinn(commands.Cog):
             membership_status = "Ja" if last_membership["is_valid"] else "Nei"
             if last_membership["membership_type"] != "lifelong":
                 expiration_date = datetime.strptime(last_membership["end_date"], "%Y-%m-%d")
+                expiration_date = misc_utils.localize(expiration_date, self.bot.timezone)
                 expires = discord.utils.format_dt(expiration_date, "D")
                 time_left = discord.utils.format_dt(expiration_date, "R")
 

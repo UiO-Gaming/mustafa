@@ -16,6 +16,23 @@ from PIL import ImageFont
 MIDNIGHT = datetime.time(hour=0, minute=0, tzinfo=ZoneInfo("Europe/Oslo"))
 
 
+def localize(dt: datetime.datetime, tz: datetime.tzinfo | None) -> datetime.datetime:
+    """
+    Attach a time zone to a naive datetime without changing its wall time
+
+    Parameters
+    ----------
+    dt (datetime.datetime): The naive datetime
+    tz (datetime.tzinfo | None): The time zone. None means the system time zone
+
+    Returns
+    ----------
+    (datetime.datetime): The aware datetime
+    """
+
+    return dt.replace(tzinfo=tz) if tz else dt.astimezone()
+
+
 # The exceptions discord.py's tasks.loop retries instead of stopping on
 RETRIED_TASK_EXCEPTIONS = (
     OSError,

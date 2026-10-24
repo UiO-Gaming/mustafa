@@ -6,7 +6,6 @@ Below you will see a lot of stupid shit. Pls ignore
 """
 
 import random
-from datetime import datetime
 from datetime import timedelta
 from typing import override
 
@@ -47,7 +46,7 @@ class TenMan(commands.Cog):
         """
 
         if lobby := self.active_lobbies.get(str(interaction.user.id), None):
-            if lobby.ends < datetime.now():
+            if lobby.ends < discord.utils.utcnow():
                 self.active_lobbies.pop(str(interaction.user.id))
             else:
                 return await interaction.response.send_message(
@@ -57,7 +56,7 @@ class TenMan(commands.Cog):
                 )
 
         for lobby in self.active_lobbies.values():
-            if lobby.ends > datetime.now() and any(p.id == interaction.user.id for p in lobby.players):
+            if lobby.ends > discord.utils.utcnow() and any(p.id == interaction.user.id for p in lobby.players):
                 return await interaction.response.send_message(
                     embed=embed_templates.error_warning(
                         "Du er allerede i en lobby",
@@ -67,7 +66,7 @@ class TenMan(commands.Cog):
         self.active_lobbies[str(interaction.user.id)] = Lobby(
             host=interaction.user,
             players=[interaction.user],
-            ends=datetime.now() + timedelta(minutes=30),
+            ends=discord.utils.utcnow() + timedelta(minutes=30),
             kicked_players=[],
         )
 

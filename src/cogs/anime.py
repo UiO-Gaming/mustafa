@@ -6,6 +6,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from cogs.utils import embed_templates
+from cogs.utils import misc_utils
 
 
 class Anime(commands.Cog):
@@ -300,7 +301,8 @@ class Anime(commands.Cog):
 
         year, month, day = date.get("year"), date.get("month"), date.get("day")
         if year and month and day:
-            return discord.utils.format_dt(datetime(year, month, day), style="d")
+            date = misc_utils.localize(datetime(year, month, day), self.bot.timezone)
+            return discord.utils.format_dt(date, style="d")
         return f"{day or '?'}.{month or '?'}.{year or '?'}"
 
     def construct_release_schedule_string(self, start_date: dict, end_date: dict) -> str:

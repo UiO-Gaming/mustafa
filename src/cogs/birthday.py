@@ -61,19 +61,23 @@ class Birthday(commands.Cog):
 
         self.bot.logger.info("Checking for birthdays")
 
-        birthdays = await self.bot.db.fetchall("""
+        today = self.local_today()
+        birthdays = await self.bot.db.fetchall(
+            """
             SELECT *
             FROM birthdays
             WHERE (
-                EXTRACT(MONTH FROM birthday) = EXTRACT(MONTH FROM current_date)
-                AND EXTRACT(DAY FROM birthday) = EXTRACT(DAY FROM current_date)
+                EXTRACT(MONTH FROM birthday) = EXTRACT(MONTH FROM %(today)s)
+                AND EXTRACT(DAY FROM birthday) = EXTRACT(DAY FROM %(today)s)
             ) OR (
                 -- Celebrate 29 February birthdays on 28 February in years that aren't leap years
                 to_char(birthday, 'MM-DD') = '02-29'
-                AND to_char(current_date, 'MM-DD') = '02-28'
-                AND to_char(current_date + 1, 'MM-DD') = '03-01'
+                AND to_char(%(today)s, 'MM-DD') = '02-28'
+                AND to_char(%(today)s + 1, 'MM-DD') = '03-01'
             );
-            """)
+            """,
+            {"today": today.date()},
+        )
 
         self.bot.logger.info(f"Found the following birthdays: {birthdays}")
 
@@ -93,7 +97,7 @@ class Birthday(commands.Cog):
                 continue
 
             date = datetime(birthday[1].year, birthday[1].month, birthday[1].day)
-            years_old = relativedelta(datetime.now(), date).years
+            years_old = relativedelta(today, date).years
 
             # Is it inefficent to define a list of greetings per iteration? Yes
             # Am I hoping python somehow will automatically optimize my code? Yes
@@ -144,6 +148,16 @@ class Birthday(commands.Cog):
         self.bot.logger.info("Unloading cog")
         self.birthday_check.cancel()
 
+    def local_today(self) -> datetime:
+        """
+        Returns
+        ----------
+        (datetime): Midnight today in the bot's time zone, as a naive datetime to compare with birthdays
+        """
+
+        now = discord.utils.utcnow().astimezone(self.bot.timezone)
+        return datetime(now.year, now.month, now.day)
+
     async def fetch_user_birthday(self, user_id: int) -> datetime | None:
         """
         Fetch the birthday of a user in the database
@@ -177,18 +191,19 @@ class Birthday(commands.Cog):
 
         results = await self.bot.db.fetchone(
             """
-            SELECT *, CAST(birthday + ((EXTRACT(YEAR FROM AGE(birthday)) + 1) * interval '1' YEAR) AS DATE) AS next_bday
+            SELECT *,
+                CAST(birthday + ((EXTRACT(YEAR FROM AGE(%s, birthday)) + 1) * interval '1' YEAR) AS DATE) AS next_bday
             FROM birthdays
             WHERE discord_id = %s
             """,
-            (user_id,),
+            (self.local_today().date(), user_id),
         )
         if results:
             birthday = results[2]
             return datetime(birthday.year, birthday.month, birthday.day)
         else:
             # This will never happen unless a database error occurs. Keeping the type checker happy
-            return datetime.now()
+            return self.local_today()
 
     async def fetch_next_birthdays(self) -> list[tuple[int, datetime, datetime]]:
         """
@@ -199,11 +214,15 @@ class Birthday(commands.Cog):
         (list[tuple[int, datetime, datetime]]): List of tuples containing the user ID, date of birth and next birthday
         """
 
-        results = await self.bot.db.fetchall("""
-            SELECT *, CAST(birthday + ((EXTRACT(YEAR FROM AGE(birthday)) + 1) * interval '1' YEAR) AS DATE) AS next_bday
+        results = await self.bot.db.fetchall(
+            """
+            SELECT *,
+                CAST(birthday + ((EXTRACT(YEAR FROM AGE(%s, birthday)) + 1) * interval '1' YEAR) AS DATE) AS next_bday
             FROM birthdays
             ORDER BY next_bday ASC
-            """)
+            """,
+            (self.local_today().date(),),
+        )
 
         # Convert date objects to datetime objects
         birthdays = []
@@ -268,7 +287,7 @@ class Birthday(commands.Cog):
                 ephemeral=True,
             )
 
-        if date > datetime.now():
+        if date > self.local_today():
             return await interaction.response.send_message(
                 embed=embed_templates.error_warning("Du kan ikke sette en fremtidig dato!"),
                 ephemeral=True,
@@ -276,6 +295,7 @@ class Birthday(commands.Cog):
 
         await self.set_user_birthday(interaction.user.id, date)
 
+        date = misc_utils.localize(date, self.bot.timezone)
         embed = embed_templates.success(f"Bursdag satt til {discord.utils.format_dt(date, style='D')}")
         await interaction.response.send_message(embed=embed)
 
@@ -322,13 +342,14 @@ class Birthday(commands.Cog):
             )
 
         # Current age information
+        today = self.local_today()
         birthday = datetime(user.year, user.month, user.day)
-        days_old = (datetime.now() - birthday).days
-        years_old = relativedelta(datetime.now(), birthday).years
+        days_old = (today - birthday).days
+        years_old = relativedelta(today, birthday).years
 
         #  Next birthday information
         next_birthday = await self.fetch_user_next_birthday(bruker.id)
-        next_birthday_days = (next_birthday.date() - datetime.now().date()).days
+        next_birthday_days = (next_birthday - today).days
 
         # Japanese era
         japanese_era = EraDate.from_date(birthday).strftime("%-K%-y年")
@@ -336,7 +357,9 @@ class Birthday(commands.Cog):
         embed = discord.Embed(description=bruker.mention, color=bruker.color)
         embed.set_thumbnail(url=bruker.display_avatar)
         embed.set_author(name=bruker.name, icon_url=bruker.display_avatar)
-        embed.add_field(name="Bursdag", value=discord.utils.format_dt(birthday, style="D"))
+        embed.add_field(
+            name="Bursdag", value=discord.utils.format_dt(misc_utils.localize(birthday, self.bot.timezone), style="D")
+        )
         embed.add_field(name="Hvor gammel?", value=f"{years_old} år\n({days_old} dager)", inline=False)
         embed.add_field(name="Weeb age", value=japanese_era, inline=False)
         embed.add_field(
@@ -378,6 +401,7 @@ class Birthday(commands.Cog):
             except (discord.NotFound, discord.HTTPException):
                 continue
 
+            next_birthday = misc_utils.localize(next_birthday, self.bot.timezone)
             timestamp = discord.utils.format_dt(next_birthday, style="D")
             relative_timestamp = discord.utils.format_dt(next_birthday, style="R")
             birthday_strings.append(f"* {discord_user.name} - {timestamp} ({relative_timestamp})")

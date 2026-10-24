@@ -14,6 +14,7 @@ from PIL import ImageFont
 
 from cogs.utils import discord_utils
 from cogs.utils import embed_templates
+from cogs.utils import misc_utils
 
 
 class Misc(commands.Cog):
@@ -214,7 +215,7 @@ class Misc(commands.Cog):
         """
 
         land = land.upper()
-        år = datetime.now().year if not år else int(år)
+        år = discord.utils.utcnow().astimezone(self.bot.timezone).year if not år else int(år)
 
         async with self.bot.http_session.get(f"https://date.nager.at/api/v3/publicholidays/{år}/{land}") as response:
             if response.status not in (200, 204):
@@ -231,7 +232,8 @@ class Misc(commands.Cog):
         # Construct output
         holiday_str = ""
         for day in data:
-            date = discord.utils.format_dt(datetime.strptime(day["date"], "%Y-%m-%d"), style="D")
+            date = datetime.strptime(day["date"], "%Y-%m-%d")
+            date = discord.utils.format_dt(misc_utils.localize(date, self.bot.timezone), style="D")
             holiday_str += f'* **{date}**: {day["localName"]}\n'
 
         embed = discord.Embed(
@@ -358,6 +360,10 @@ class Misc(commands.Cog):
         parsed_time = dateparser.parse(
             tekst,
             languages=["nb", "nn", "en"],
+            settings={
+                "TIMEZONE": str(self.bot.timezone) if self.bot.timezone else "local",
+                "RETURN_AS_TIMEZONE_AWARE": True,
+            },
         )
         if not parsed_time:
             embed = embed_templates.error_warning("Forstod ikke tidspunktet. Prøv å skrive det på en annen måte.")

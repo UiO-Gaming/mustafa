@@ -1,5 +1,4 @@
 import random
-from datetime import datetime
 
 import discord
 from discord.ext import commands
@@ -41,7 +40,7 @@ class RepeatedMessages(commands.Cog):
         Sends a message on Friday at 00:00
         """
 
-        if datetime.now().weekday() != 4:
+        if discord.utils.utcnow().astimezone(self.bot.timezone).weekday() != 4:
             return
 
         if not (channel := self.get_general_channel()):
@@ -73,7 +72,7 @@ class RepeatedMessages(commands.Cog):
         """
         Sends a message on Monday at 00:00
         """
-        if datetime.now().weekday() != 0:
+        if discord.utils.utcnow().astimezone(self.bot.timezone).weekday() != 0:
             return
         if not (channel := self.get_general_channel()):
             return
@@ -90,7 +89,8 @@ class RepeatedMessages(commands.Cog):
         Sends a message on New Year's Day at 00:00
         """
 
-        if datetime.now().month != 1 or datetime.now().day != 1:
+        today = discord.utils.utcnow().astimezone(self.bot.timezone)
+        if today.month != 1 or today.day != 1:
             return
 
         if not (channel := self.get_general_channel()):

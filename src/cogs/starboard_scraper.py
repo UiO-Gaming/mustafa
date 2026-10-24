@@ -50,9 +50,25 @@ class StarboardScraper(commands.Cog):
             CREATE TABLE IF NOT EXISTS starboard_scraper_state (
                 id INTEGER PRIMARY KEY DEFAULT 1,
                 last_scraped_message_id BIGINT,
-                last_scrape_time TIMESTAMP,
+                last_scrape_time TIMESTAMPTZ,
                 CHECK (id = 1)
             )
+            """)
+        await self.bot.db.execute("""
+            DO $$
+            BEGIN
+                IF (
+                    SELECT data_type
+                    FROM information_schema.columns
+                    WHERE table_schema = current_schema()
+                        AND table_name = 'starboard_scraper_state'
+                        AND column_name = 'last_scrape_time'
+                ) = 'timestamp without time zone' THEN
+                    ALTER TABLE starboard_scraper_state
+                        ALTER COLUMN last_scrape_time TYPE TIMESTAMPTZ
+                            USING last_scrape_time AT TIME ZONE 'Europe/Oslo';
+                END IF;
+            END $$;
             """)
 
     async def get_last_scraped_message_id(self):

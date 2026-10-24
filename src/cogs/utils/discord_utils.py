@@ -191,7 +191,7 @@ class Lobby:
 
 class LobbyView(discord.ui.View):
     def __init__(self, lobby: Lobby, bot: commands.Bot):
-        lobby_end = (lobby.ends - datetime.now()).total_seconds()
+        lobby_end = (lobby.ends - discord.utils.utcnow()).total_seconds()
         super().__init__(timeout=lobby_end)
 
         self.lobby = lobby
@@ -210,7 +210,7 @@ class LobbyView(discord.ui.View):
                 pass
 
     async def end_lobby(self):
-        self.lobby.ends = datetime.now()
+        self.lobby.ends = discord.utils.utcnow()
         for item in self.children:
             item.disabled = True
 
@@ -225,7 +225,7 @@ class LobbyView(discord.ui.View):
 
     @discord.ui.button(label="Bli med", style=discord.ButtonStyle.blurple)
     async def join_lobby(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if datetime.now() > self.lobby.ends:
+        if discord.utils.utcnow() > self.lobby.ends:
             embed = embed_templates.error_warning("Lobbyen har allerede startet")
             return await interaction.response.send_message(embed=embed, ephemeral=True, delete_after=10)
 
@@ -289,7 +289,7 @@ class LobbyView(discord.ui.View):
             embed = embed_templates.error_warning("Bare hosten kan slette lobbyen")
             return await interaction.response.send_message(embed=embed, ephemeral=True, delete_after=10)
 
-        self.lobby.ends = datetime.now()
+        self.lobby.ends = discord.utils.utcnow()
         await interaction.message.delete()
 
         embed = embed_templates.success("Lobbyen har blitt slettet")
@@ -418,7 +418,7 @@ class TempVoiceHelper:
                 continue
 
             if len(channel.members) == 0:
-                self.temp_vc_channels[channel]["no_members_since"] = datetime.now()
+                self.temp_vc_channels[channel]["no_members_since"] = discord.utils.utcnow()
                 self.bot.logger.info(f"Temporary voice channel {channel} has no members. Will be deleted in 1 minutes")
             else:
                 self.temp_vc_channels[channel]["no_members_since"] = None
@@ -434,7 +434,7 @@ class TempVoiceHelper:
             if not data["no_members_since"]:
                 continue
 
-            if (datetime.now() - data["no_members_since"]).total_seconds() >= 60:
+            if (discord.utils.utcnow() - data["no_members_since"]).total_seconds() >= 60:
                 try:
                     await channel.delete(reason="tempvoice kanal inaktiv i 1 minutt")
                 except discord.NotFound:
@@ -470,7 +470,7 @@ class TempVoiceHelper:
                 await self.forget(channel_id)
                 continue
 
-            now = datetime.now()
+            now = discord.utils.utcnow()
             self.temp_vc_channels[channel] = {"created": now, "no_members_since": None if channel.members else now}
             restored += 1
 
@@ -514,7 +514,7 @@ class TempVoiceHelper:
 
         self.bot.logger.info(f"Created temporary voice channel {channel} in {interaction.guild}")
 
-        now = datetime.now()
+        now = discord.utils.utcnow()
         self.temp_vc_channels[channel] = {"created": now, "no_members_since": now}
         await self.remember(channel)
 

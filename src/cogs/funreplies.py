@@ -1,6 +1,7 @@
 import random
 import re
 from datetime import datetime
+from datetime import timezone
 
 import discord
 from discord.ext import commands
@@ -21,7 +22,7 @@ class FunReplies(commands.Cog):
         # This is kind of a shitty way to do it but I'm too lazy to implement anything good right now
         self.cooldown_seconds = 600
         initial_datetime = datetime(
-            2000, 9, 11
+            2000, 9, 11, tzinfo=timezone.utc
         )  # Set initial datetime far in the past to allow triggering right after boot
         self.previous_invokations = {
             "olof palme": initial_datetime,
@@ -101,12 +102,12 @@ class FunReplies(commands.Cog):
         bool: Whether or not the reply was triggered
         """
 
-        if (datetime.now() - self.previous_invokations[cooldown_key]).total_seconds() < self.cooldown_seconds:
+        if (discord.utils.utcnow() - self.previous_invokations[cooldown_key]).total_seconds() < self.cooldown_seconds:
             return False
 
         if re.search(regex_match, message.content, flags=regex_flags) and random.randint(1, 100) <= trigger_chance:
             await message.reply(reply)
-            self.previous_invokations[cooldown_key] = datetime.now()
+            self.previous_invokations[cooldown_key] = discord.utils.utcnow()
             return True
 
         return False
