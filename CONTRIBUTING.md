@@ -76,7 +76,7 @@ Generelt sett unngår vi bruk av leading underscores for variabelnavn og metoder
 
 ### Avhengigheter
 
-Hvis en ny avhengighet trengs, sørg for å spesifisere major og minor versjon i requirementsfila.
+Hvis en ny avhengighet trengs, legg den til med `uv add "pakke==X.Y.*"` slik at major og minor versjon er spesifisert.
 
 ## Ønsket utforming av ny funksjonalitet
 

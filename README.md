@@ -26,18 +26,18 @@ docker compose up
 
 Du bør ha gjort følgende:
 
-- Installert Python 3.12+
+- Installert [uv](https://docs.astral.sh/uv/)
 
 1. Installer avhengigheter
 
 ```
-pip install -r requirements.txt -U
+uv sync
 ```
 
 2. Kjør bot
 
 ```
-python src/run.py
+uv run src/run.py
 ```
 
 ## Bidra
