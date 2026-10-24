@@ -1,6 +1,6 @@
 import platform
-from os import environ
 from os import getpid
+from os.path import exists
 from time import time
 
 import discord
@@ -78,8 +78,8 @@ class BotInfo(commands.Cog):
         embed.add_field(name="Python", value=platform.python_version())
         embed.add_field(name="Ressursbruk", value=f"RAM: {memory_usage} MB")
         embed.add_field(name="Kernel", value=f"{platform.system()} {platform.release()}")
-        if "docker" in environ:
-            embed.add_field(name="Docker", value="U+FE0F")
+        if exists("/.dockerenv"):
+            embed.add_field(name="Docker", value="✔️")
         embed.add_field(
             name=f"Brukere ({len(total_members)})",
             value=f'{self.bot.emoji["online"]}{len(online_members)}\n'
