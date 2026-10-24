@@ -23,7 +23,7 @@ class BotInfo(commands.Cog):
 
     @app_commands.checks.bot_has_permissions(embed_links=True, external_emojis=True)
     @app_commands.checks.cooldown(1, 2)
-    @app_commands.command(name="botinfo", description="Se informajson om botten")
+    @app_commands.command(name="botinfo", description="Se informasjon om botten")
     async def botinfo(self, interaction: discord.Interaction):
         """
         View information about the bot

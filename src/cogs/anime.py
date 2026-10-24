@@ -107,7 +107,7 @@ class Anime(commands.Cog):
         }
         return languages.get(language_name, language_name)
 
-    def onvert_role_names(self, role_name: str) -> str:
+    def convert_role_names(self, role_name: str) -> str:
         """
         Translates role names into norwegian
 
@@ -1032,7 +1032,7 @@ class Anime(commands.Cog):
             nsfwtag = "🔞" if media["node"]["isAdult"] else ""
             media_name = media["node"]["title"]["romaji"]
             media_url = media["node"]["siteUrl"]
-            media_role = self.onvert_role_names(media["characterRole"])
+            media_role = self.convert_role_names(media["characterRole"])
             for voice_actor in media["voiceActors"]:
                 voice_actor_url = voice_actor["siteUrl"]
                 voice_actor_language = self.convert_language_names(voice_actor["language"])
