@@ -1,3 +1,4 @@
+import asyncio
 import random
 import re
 from datetime import datetime
@@ -267,13 +268,37 @@ class Misc(commands.Cog):
         if bruker.id == self.bot.user.id:
             match_percent = 100
 
-        # Prepare invoker avatar
         invoker_avatar = await discord_utils.get_file_bytesio(interaction.user.display_avatar)
+        user_avatar = await discord_utils.get_file_bytesio(bruker.display_avatar)
+        output = await asyncio.to_thread(Misc.make_match_image, invoker_avatar, user_avatar, match_percent)
+
+        # Send
+        f = discord.File(output, filename=f"{interaction.user.id}_{bruker.id}_match.png")
+        embed = discord.Embed()
+        embed.set_image(url=f"attachment://{interaction.user.id}_{bruker.id}_match.png")
+        await interaction.response.send_message(embed=embed, file=f)
+
+    @staticmethod
+    def make_match_image(invoker_avatar: BytesIO, user_avatar: BytesIO, match_percent: int) -> BytesIO:
+        """
+        Draws the two avatars with a heart and the match percent between them
+
+        Parameters
+        ----------
+        invoker_avatar (BytesIO): The invoking user's avatar
+        user_avatar (BytesIO): The other user's avatar
+        match_percent (int): How much the users match
+
+        Returns
+        ----------
+        (BytesIO): The image as PNG
+        """
+
+        # Prepare invoker avatar
         invoker = Image.open(invoker_avatar).convert("RGBA")
         invoker = invoker.resize((389, 389))
 
         # Prepare user avatar
-        user_avatar = await discord_utils.get_file_bytesio(bruker.display_avatar)
         user = Image.open(user_avatar).convert("RGBA")
         user = user.resize((389, 389))
 
@@ -297,11 +322,7 @@ class Misc(commands.Cog):
         image.save(output, format="PNG")
         output.seek(0)
 
-        # Send
-        f = discord.File(output, filename=f"{interaction.user.id}_{bruker.id}_match.png")
-        embed = discord.Embed()
-        embed.set_image(url=f"attachment://{interaction.user.id}_{bruker.id}_match.png")
-        await interaction.response.send_message(embed=embed, file=f)
+        return output
 
     @app_commands.checks.cooldown(1, 2)
     @app_commands.command(name="ifonlyyouknew", description="How bad things really are")

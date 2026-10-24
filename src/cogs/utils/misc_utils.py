@@ -161,7 +161,7 @@ class Paginator:
         return self.get_page(self.current_page)
 
 
-async def put_text_in_box(
+def put_text_in_box(
     image: np.ndarray,
     text: str,
     top_left: tuple,

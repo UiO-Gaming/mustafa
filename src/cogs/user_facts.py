@@ -1,3 +1,4 @@
+import asyncio
 from io import BytesIO
 
 import discord
@@ -245,7 +246,7 @@ class UserFacts(commands.Cog):
             if user:
                 others.append((user, mbti))
 
-        graph_png = self.create_mbti_graph((bruker, user_mbti), others)
+        graph_png = await asyncio.to_thread(self.create_mbti_graph, (bruker, user_mbti), others)
         image = discord.File(BytesIO(graph_png), filename=f"{bruker.id}_mbti.png")
 
         embed.set_image(url=f"attachment://{bruker.id}_mbti.png")

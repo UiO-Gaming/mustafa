@@ -143,12 +143,12 @@ class BingoGenerator:
         player_sheets = {}
 
         for player in players:
-            player_sheets[player] = await cls.generate_sheet(sample_space[player], image)
+            player_sheets[player] = await asyncio.to_thread(cls.generate_sheet, sample_space[player], image)
 
-        return {p: cv2.imencode(".png", sheet)[1].tobytes() for p, sheet in player_sheets.items()}
+        return player_sheets
 
     @classmethod
-    async def generate_sheet(cls, sample_space: list, image: np.ndarray):
+    def generate_sheet(cls, sample_space: list, image: np.ndarray) -> bytes:
         image = image.copy()
 
         # start = 8, 294
@@ -160,7 +160,7 @@ class BingoGenerator:
         for i in range(0, 5):
             for j in range(0, 5):
                 width = 123
-                await misc_utils.put_text_in_box(
+                misc_utils.put_text_in_box(
                     sliced,
                     sample_space.pop(),
                     top_left=(i * width + 1, j * width + 1),
@@ -168,7 +168,7 @@ class BingoGenerator:
                     font_path=cls.FONT_PATH,
                 )
 
-        return image
+        return cv2.imencode(".png", image)[1].tobytes()
 
 
 class BingoView(LobbyView):

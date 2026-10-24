@@ -59,6 +59,24 @@ class Meme(commands.Cog):
             await interaction.followup.send(embed=embed_templates.error_warning("Bildet er ugyldig"))
             return
 
+        output = await asyncio.to_thread(Meme.fry, image)
+
+        await interaction.followup.send(file=discord.File(output, "deepfry.jpg"))
+
+    @staticmethod
+    def fry(image: Image.Image) -> BytesIO:
+        """
+        Applies the deepfrying filters to an image
+
+        Parameters
+        ----------
+        image (Image.Image): The image to deepfry
+
+        Returns
+        ----------
+        (BytesIO): The deepfried image as JPEG
+        """
+
         if image.mode != "RGB":
             image = image.convert("RGB")
 
@@ -76,7 +94,7 @@ class Meme(commands.Cog):
         image.save(output, format="jpeg", quality=5)
         output.seek(0)
 
-        await interaction.followup.send(file=discord.File(output, "deepfry.jpg"))
+        return output
 
     @app_commands.checks.bot_has_permissions(attach_files=True)
     @app_commands.checks.cooldown(1, 5)
@@ -94,13 +112,33 @@ class Meme(commands.Cog):
 
         await interaction.response.defer()
 
+        output = await asyncio.to_thread(Meme.make_prefer_meme, dårlig_tekst, bra_tekst)
+
+        # Send image
+        await interaction.followup.send(file=discord.File(output, "sivert_goodbad.jpg"))
+
+    @staticmethod
+    def make_prefer_meme(bad_text: str, good_text: str) -> BytesIO:
+        """
+        Draws the texts on the drake-like meme template
+
+        Parameters
+        ----------
+        bad_text (str): The upper text, what's disliked
+        good_text (str): The lower text, what's liked
+
+        Returns
+        ----------
+        (BytesIO): The meme as JPEG
+        """
+
         # Fetch meme template
         template = cv2.imread("./src/assets/sivert_goodbad.jpg")
 
         # Draw text
         font = "./src/assets/fonts/comic.ttf"
-        await misc_utils.put_text_in_box(template, dårlig_tekst, (540, 0), (1080, 540), font)
-        await misc_utils.put_text_in_box(template, bra_tekst, (540, 540), (1080, 1080), font)
+        misc_utils.put_text_in_box(template, bad_text, (540, 0), (1080, 540), font)
+        misc_utils.put_text_in_box(template, good_text, (540, 540), (1080, 1080), font)
 
         # Save image to buffer
         _, buffer = cv2.imencode(".jpg", template)
@@ -108,8 +146,7 @@ class Meme(commands.Cog):
         cv2.imdecode(np.frombuffer(output.getbuffer(), np.uint8), -1)
         output.seek(0)
 
-        # Send image
-        await interaction.followup.send(file=discord.File(output, "sivert_goodbad.jpg"))
+        return output
 
     @app_commands.checks.bot_has_permissions(embed_links=True, attach_files=True)
     @app_commands.checks.cooldown(1, 5)
@@ -130,10 +167,32 @@ class Meme(commands.Cog):
             embed = embed_templates.error_warning("Bildet må være i PNG- eller JPEG-format")
             return await interaction.followup.send(embed=embed)
 
+        provided_image = await discord_utils.get_file_bytesio(file)
+        output = await asyncio.to_thread(Meme.make_wojakpoint, provided_image)
+
+        # Send
+        f = discord.File(output, filename="uio_wojak.png")
+        embed = discord.Embed()
+        embed.set_image(url="attachment://uio_wojak.png")
+        await interaction.followup.send(embed=embed, file=f)
+
+    @staticmethod
+    def make_wojakpoint(provided_image: BytesIO) -> BytesIO:
+        """
+        Puts the pointing wojaks on top of an image
+
+        Parameters
+        ----------
+        provided_image (BytesIO): The image to point at
+
+        Returns
+        ----------
+        (BytesIO): The meme as PNG
+        """
+
         # Prepare template
         template = Image.open("./src/assets/wojak_point.png").convert("RGBA")
 
-        provided_image = await discord_utils.get_file_bytesio(file)
         provided_image = Image.open(provided_image).convert("RGBA").resize((template.width, template.height))
 
         # Putting it all together
@@ -146,11 +205,7 @@ class Meme(commands.Cog):
         provided_image.save(output, format="PNG")
         output.seek(0)
 
-        # Send
-        f = discord.File(output, filename="uio_wojak.png")
-        embed = discord.Embed()
-        embed.set_image(url="attachment://uio_wojak.png")
-        await interaction.followup.send(embed=embed, file=f)
+        return output
 
     # I can't be arsed to make this code good rn
     # This code is absolute horse ass
