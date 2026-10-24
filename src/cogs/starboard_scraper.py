@@ -34,26 +34,22 @@ class StarboardScraper(commands.Cog):
         Create the necessary tables for the cog to work
         """
 
-        self.cursor.execute(
-            """
+        self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS starboard_messages (
                 id SERIAL PRIMARY KEY,
                 starboard_message_id BIGINT UNIQUE,
                 original_message_id BIGINT,
                 original_channel_id BIGINT
             )
-            """
-        )
-        self.cursor.execute(
-            """
+            """)
+        self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS starboard_scraper_state (
                 id INTEGER PRIMARY KEY DEFAULT 1,
                 last_scraped_message_id BIGINT,
                 last_scrape_time TIMESTAMP,
                 CHECK (id = 1)
             )
-            """
-        )
+            """)
 
     def get_last_scraped_message_id(self):
         """
@@ -63,13 +59,11 @@ class StarboardScraper(commands.Cog):
         -------
         int or None: Last scraped message ID or None if never scraped
         """
-        self.cursor.execute(
-            """
+        self.cursor.execute("""
             SELECT last_scraped_message_id
             FROM starboard_scraper_state
             WHERE id = 1
-            """
-        )
+            """)
         result = self.cursor.fetchone()
         return result[0] if result else None
 

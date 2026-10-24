@@ -41,15 +41,13 @@ class UserFacts(commands.Cog):
         Create the necessary tables for the birthday cog to work
         """
 
-        self.cursor.execute(
-            """
+        self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS user_facts (
                 discord_id BIGINT PRIMARY KEY,
                 mbti CHAR(4),
                 height INT
             );
-            """
-        )
+            """)
 
     height_group = app_commands.Group(name="høyde", description="Se, endre eller fjern høyde for brukere på serveren")
 
@@ -162,13 +160,11 @@ class UserFacts(commands.Cog):
         interaction (discord.Interaction): The interaction object
         """
 
-        self.cursor.execute(
-            """
+        self.cursor.execute("""
             SELECT discord_id, height FROM user_facts
             WHERE height IS NOT NULL
             ORDER BY height DESC;
-            """
-        )
+            """)
 
         if not (result := self.cursor.fetchall()):
             return await interaction.response.send_message(

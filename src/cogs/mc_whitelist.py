@@ -26,14 +26,12 @@ class MCWhitelist(commands.Cog):
         Create the necessary tables for the mc_whitelist cog to work
         """
 
-        self.cursor.execute(
-            """
+        self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS mc_whitelist (
                 discord_id BIGINT PRIMARY KEY,
                 minecraft_id TEXT NOT NULL
             );
-            """
-        )
+            """)
 
     whitelist_group = app_commands.Group(
         name="whitelist", description="Registrer eller fjern deg selv fra vår Minecraft whitelist"

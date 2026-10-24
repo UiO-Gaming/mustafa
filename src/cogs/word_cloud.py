@@ -55,25 +55,21 @@ class WordCloud(commands.Cog):
         Create the necessary tables for the Ordsky cog to work
         """
 
-        self.cursor.execute(
-            """
+        self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS wordcloud_metadata (
                 discord_user_id BIGINT PRIMARY KEY,
                 tracked_since_message_channel_id BIGINT NOT NULL,
                 tracked_since_message_id BIGINT NOT NULL UNIQUE
             )
-            """
-        )
-        self.cursor.execute(
-            """
+            """)
+        self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS wordcloud_words (
                 discord_user_id BIGINT NOT NULL,
                 word TEXT NOT NULL,
                 frequency INTEGER NOT NULL,
                 PRIMARY KEY (discord_user_id, word)
             )
-            """
-        )
+            """)
 
     async def cog_unload(self):
         """
@@ -89,12 +85,10 @@ class WordCloud(commands.Cog):
         Populates the cached list of consenting users
         """
 
-        self.cursor.execute(
-            """
+        self.cursor.execute("""
             SELECT discord_user_id
             FROM wordcloud_metadata
-            """
-        )
+            """)
         self.consenting_users = [row[0] for row in self.cursor.fetchall()]
 
     async def insert_cache(self):

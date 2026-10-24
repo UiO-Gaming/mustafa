@@ -38,16 +38,14 @@ class Streak(commands.Cog):
         Create the necessary tables for the streak cog to work
         """
 
-        self.cursor.execute(
-            """
+        self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS streak (
                 discord_id BIGINT PRIMARY KEY,
                 streak_start_id TEXT NOT NULL,
                 streak_start_time timestamp NOT NULL,
                 latest_post_time timestamp NOT NULL
             );
-            """
-        )
+            """)
 
     async def cog_unload(self):
         self.bot.logger.info("Unloading cog")
@@ -60,12 +58,10 @@ class Streak(commands.Cog):
         Populate the cache with the current streaks
         """
 
-        self.cursor.execute(
-            """
+        self.cursor.execute("""
             SELECT *
             FROM streak;
-            """
-        )
+            """)
         streaks = self.cursor.fetchall()
 
         for streak in streaks:
@@ -149,12 +145,10 @@ class Streak(commands.Cog):
         if self.streak_cache:
             await self.insert_cache()
 
-        self.cursor.execute(
-            """
+        self.cursor.execute("""
             SELECT discord_id, latest_post_time
             FROM streak;
-            """
-        )
+            """)
         streaks = self.cursor.fetchall()
 
         for streak in streaks:
@@ -250,13 +244,11 @@ class Streak(commands.Cog):
 
         await interaction.response.defer()
 
-        self.cursor.execute(
-            """
+        self.cursor.execute("""
             SELECT discord_id, streak_start_time
             FROM streak
             ORDER BY streak_start_time;
-            """
-        )
+            """)
         streaks = self.cursor.fetchall()
 
         if not streaks:

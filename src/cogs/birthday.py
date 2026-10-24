@@ -36,14 +36,12 @@ class Birthday(commands.Cog):
         Create the necessary tables for the birthday cog to work
         """
 
-        self.cursor.execute(
-            """
+        self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS birthdays (
                 discord_id BIGINT PRIMARY KEY,
                 birthday DATE
             );
-            """
-        )
+            """)
 
     birthday_group = app_commands.Group(
         name="bursdag", description="Se, endre eller fjern bursdager for brukere på serveren"
@@ -59,14 +57,12 @@ class Birthday(commands.Cog):
 
         self.bot.logger.info("Checking for birthdays")
 
-        self.cursor.execute(
-            """
+        self.cursor.execute("""
             SELECT *
             FROM birthdays
             WHERE EXTRACT(MONTH FROM birthday) = EXTRACT(MONTH FROM current_date)
                 AND EXTRACT(DAY FROM birthday) = EXTRACT(DAY FROM current_date);
-            """
-        )
+            """)
 
         birthdays = self.cursor.fetchall()
         self.bot.logger.info(f"Found the following birthdays: {birthdays}")
@@ -192,13 +188,11 @@ class Birthday(commands.Cog):
         (list[tuple[int, datetime, datetime]]): List of tuples containing the user ID, date of birth and next birthday
         """
 
-        self.cursor.execute(
-            """
+        self.cursor.execute("""
             SELECT *, CAST(birthday + ((EXTRACT(YEAR FROM AGE(birthday)) + 1) * interval '1' YEAR) AS DATE) AS next_bday
             FROM birthdays
             ORDER BY next_bday ASC
-            """
-        )
+            """)
         results = self.cursor.fetchall()
 
         # Convert date objects to datetime objects

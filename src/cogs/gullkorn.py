@@ -24,31 +24,25 @@ class Gullkorn(commands.Cog):
         Create the necessary tables for the gullkorn cog to work
         """
 
-        self.cursor.execute(
-            """
+        self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS gullkorn (
                 discord_id BIGINT PRIMARY KEY,
                 times_cited INT NOT NULL DEFAULT 0,
                 citations_posted INT NOT NULL DEFAULT 0
             );
-            """
-        )
-        self.cursor.execute(
-            """
+            """)
+        self.cursor.execute("""
             CREATE OR REPLACE VIEW most_cited AS
             SELECT discord_id, times_cited
             FROM gullkorn
             ORDER BY times_cited DESC;
-            """
-        )
-        self.cursor.execute(
-            """
+            """)
+        self.cursor.execute("""
             CREATE OR REPLACE VIEW most_frequent_posters AS
             SELECT discord_id, citations_posted
             FROM gullkorn
             ORDER BY citations_posted DESC;
-            """
-        )
+            """)
 
     def construct_data_string(self, data: list[tuple[int, int, int]]) -> str:
         """
@@ -151,30 +145,24 @@ class Gullkorn(commands.Cog):
             embed.add_field(name="Antall gullkorn postet", value=result[2])
             return await interaction.response.send_message(embed=embed, ephemeral=False)
 
-        self.cursor.execute(
-            """
+        self.cursor.execute("""
             SELECT SUM(citations_posted)
             FROM gullkorn;
-            """
-        )
+            """)
         summary = self.cursor.fetchone()
 
-        self.cursor.execute(
-            """
+        self.cursor.execute("""
             SELECT *
             FROM most_cited
             LIMIT 5;
-            """
-        )
+            """)
         most_cited = self.cursor.fetchall()
 
-        self.cursor.execute(
-            """
+        self.cursor.execute("""
             SELECT *
             FROM most_frequent_posters
             LIMIT 5;
-            """
-        )
+            """)
         citations_posted = self.cursor.fetchall()
 
         most_cited_string = self.construct_data_string(most_cited)

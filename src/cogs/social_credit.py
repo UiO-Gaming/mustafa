@@ -48,14 +48,12 @@ class SocialCredit(commands.Cog):
         Create the necessary tables for the social credit cog to work
         """
 
-        self.cursor.execute(
-            """
+        self.cursor.execute("""
             CREATE TABLE IF NOT EXISTS social_credit (
                 user_id BIGINT PRIMARY KEY,
                 credit_score SMALLINT NOT NULL
             );
-            """
-        )
+            """)
 
     def add_new_citizen(func):
         """
@@ -239,12 +237,10 @@ class SocialCredit(commands.Cog):
 
         await interaction.response.defer()
 
-        self.cursor.execute(
-            """
+        self.cursor.execute("""
             SELECT * FROM social_credit
             ORDER BY credit_score DESC
-            """
-        )
+            """)
         result = self.cursor.fetchall()
 
         if not result:
