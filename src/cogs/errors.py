@@ -135,7 +135,8 @@ class Errors(commands.Cog):
         error (app_commands.AppCommandError): Eror context object
         """
 
-        await interaction.response.defer()
+        if not interaction.response.is_done():
+            await interaction.response.defer()
 
         # Log command usage, just in case
         await self.on_app_command_completion(interaction, interaction.command)
