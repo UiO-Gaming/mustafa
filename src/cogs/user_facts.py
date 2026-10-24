@@ -367,7 +367,7 @@ class UserFacts(commands.Cog):
         graph.node_attr["shape"] = "circle"
 
         # Invoking user's node
-        graph.node(str(user.global_name), f"{user.global_name}\n{mbti}", color="green")
+        graph.node(str(user.id), f"{user.display_name}\n{mbti}", color="green")
 
         user_index = self.mbti_list.index(mbti)
 
@@ -377,8 +377,8 @@ class UserFacts(commands.Cog):
             similarity = self.similarity_matrix[user_index, other_index]
             edge_length = 2 ** (4 - similarity)
 
-            graph.node(other_user.global_name, f"{other_user.global_name}\n{other_mbti}")
-            graph.edge(user.global_name, other_user.global_name, len=str(edge_length))
+            graph.node(str(other_user.id), f"{other_user.display_name}\n{other_mbti}")
+            graph.edge(str(user.id), str(other_user.id), len=str(edge_length))
 
         graph.render(f"{user.id}_mbti", directory="./src/assets/temp", view=False, overwrite_source=True)
 
