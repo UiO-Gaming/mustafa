@@ -259,11 +259,11 @@ class Meme(commands.Cog):
                 ephemeral=True,
             )
 
-        try:
-            os.remove(nightcored)
-            os.remove(pre_nightcored)
-        except (FileNotFoundError, PermissionError):
-            self.bot.logger.warn("Failed to remove temporary files")
+        for temp_file in (nightcored, f"{pre_nightcored}.mp3"):
+            try:
+                os.remove(temp_file)
+            except (FileNotFoundError, PermissionError):
+                self.bot.logger.warn(f"Failed to remove temporary file {temp_file}")
 
     @app_commands.checks.bot_has_permissions(attach_files=True)
     @app_commands.checks.cooldown(1, 60)
