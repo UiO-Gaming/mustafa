@@ -264,7 +264,7 @@ class Meme(commands.Cog):
             try:
                 os.remove(temp_file)
             except (FileNotFoundError, PermissionError):
-                self.bot.logger.warn(f"Failed to remove temporary file {temp_file}")
+                self.bot.logger.warning(f"Failed to remove temporary file {temp_file}")
 
     @app_commands.checks.bot_has_permissions(attach_files=True)
     @app_commands.checks.cooldown(1, 60)
@@ -298,7 +298,7 @@ class Meme(commands.Cog):
         try:
             os.remove(temp_file)
         except (FileNotFoundError, PermissionError):
-            self.bot.logger.warn(f"Failed to remove temporary file {temp_file}")
+            self.bot.logger.warning(f"Failed to remove temporary file {temp_file}")
 
     @staticmethod
     def make_crab(top_text: str, bottom_text: str, user_id: int):
