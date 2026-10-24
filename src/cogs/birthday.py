@@ -60,8 +60,15 @@ class Birthday(commands.Cog):
         self.cursor.execute("""
             SELECT *
             FROM birthdays
-            WHERE EXTRACT(MONTH FROM birthday) = EXTRACT(MONTH FROM current_date)
-                AND EXTRACT(DAY FROM birthday) = EXTRACT(DAY FROM current_date);
+            WHERE (
+                EXTRACT(MONTH FROM birthday) = EXTRACT(MONTH FROM current_date)
+                AND EXTRACT(DAY FROM birthday) = EXTRACT(DAY FROM current_date)
+            ) OR (
+                -- Celebrate 29 February birthdays on 28 February in years that aren't leap years
+                to_char(birthday, 'MM-DD') = '02-29'
+                AND to_char(current_date, 'MM-DD') = '02-28'
+                AND to_char(current_date + 1, 'MM-DD') = '03-01'
+            );
             """)
 
         birthdays = self.cursor.fetchall()
