@@ -38,27 +38,31 @@ class Aurora(commands.Cog):
         """
 
         data = requests.get("https://www.yr.no/api/v0/locations/1-72837/auroraforecast?language=nb").json()
-        if not data or data["status"]["code"] != "Ok":
-            self.bot.logger.warning("Failed to get forecast data")
+        try:
+            if not data or data["status"]["code"] != "Ok":
+                self.bot.logger.warning("Failed to get forecast data")
+                return None
+
+            now = datetime.now(timezone.utc)
+            valid_sightings = []
+            for interval in data["shortIntervals"]:
+                start = datetime.fromisoformat(interval["start"])
+                end = datetime.fromisoformat(interval["end"])
+
+                # Ignore sightings that have already ended or are more than 12 hours away
+                if end <= now or start - now > timedelta(hours=12):
+                    continue
+
+                if (
+                    interval["sunlight"]["id"] == "night"
+                    and interval["kpIndex"] >= 5
+                    and interval["cloudCover"]["value"] < 50
+                    and interval["auroraValue"] > 0.5
+                ):
+                    valid_sightings.append(interval)
+        except (KeyError, TypeError, ValueError) as e:
+            self.bot.logger.warning(f"Unexpected forecast data format: {e!r}")
             return None
-
-        now = datetime.now(timezone.utc)
-        valid_sightings = []
-        for interval in data["shortIntervals"]:
-            start = datetime.fromisoformat(interval["start"])
-            end = datetime.fromisoformat(interval["end"])
-
-            # Ignore sightings that have already ended or are more than 12 hours away
-            if end <= now or start - now > timedelta(hours=12):
-                continue
-
-            if (
-                interval["sunlight"]["id"] == "night"
-                and interval["kpIndex"] >= 5
-                and interval["cloudCover"]["value"] < 50
-                and interval["auroraValue"] > 0.5
-            ):
-                valid_sightings.append(interval)
 
         if not valid_sightings:
             return None
