@@ -138,7 +138,9 @@ class WebsiteEvents(commands.Cog):
             # As all events have the same id up until around 48 hours before its start time
             # I have not looked into this though
             await self.delete_event(before)
-            await self.create_event(after)
+
+        if after.status == discord.EventStatus.cancelled:
+            await self.delete_event(after)
         else:
             await self.create_event(after)
 
