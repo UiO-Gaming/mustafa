@@ -78,6 +78,7 @@ class WordCloud(commands.Cog):
 
         self.bot.logger.info("Unloading cog")
         self.insert_cache_loop.cancel()
+        await self.insert_cache()
         self.cursor.close()
 
     def populate_consenting_users(self):
@@ -134,11 +135,6 @@ class WordCloud(commands.Cog):
 
         self.bot.logger.info("Dumping word cloud cache to database...")
         await self.insert_cache()
-
-    @insert_cache_loop.after_loop
-    async def on_insert_cache_loop_cancel(self):
-        if self.insert_cache_loop.is_being_cancelled() and self.word_freq_cache:
-            await self.insert_cache()
 
     @commands.Cog.listener("on_message")
     async def word_freq_listener(self, message: discord.Message):

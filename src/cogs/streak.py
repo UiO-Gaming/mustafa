@@ -51,6 +51,7 @@ class Streak(commands.Cog):
         self.bot.logger.info("Unloading cog")
         self.insert_cache_loop.cancel()
         self.streak_check.cancel()
+        await self.insert_cache()
         self.cursor.close()
 
     def populate_cache(self):
@@ -101,12 +102,6 @@ class Streak(commands.Cog):
         """
 
         await self.insert_cache()
-
-    @insert_cache_loop.after_loop
-    async def on_insert_cache_loop_cancel(self):
-        self.bot.logger.info("Insert cache loop cancelled")
-        if self.insert_cache_loop.is_being_cancelled() and self.streak_cache:
-            await self.insert_cache()
 
     async def insert_cache(self):
         """
@@ -162,12 +157,6 @@ class Streak(commands.Cog):
                     """,
                     (streak[0],),
                 )
-
-    @streak_check.after_loop
-    async def on_streak_check_cancel(self):
-        self.bot.logger.info("Streak check loop cancelled")
-        if self.streak_check.is_being_cancelled():
-            await self.streak_check()
 
     streak_group = app_commands.Group(name="streak", description="Snapchat streaks, men for Discord")
 
