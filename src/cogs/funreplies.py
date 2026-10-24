@@ -101,7 +101,7 @@ class FunReplies(commands.Cog):
         bool: Whether or not the reply was triggered
         """
 
-        if (datetime.now() - self.previous_invokations[cooldown_key]).seconds < self.cooldown_seconds:
+        if (datetime.now() - self.previous_invokations[cooldown_key]).total_seconds() < self.cooldown_seconds:
             return False
 
         if re.search(regex_match, message.content, flags=regex_flags) and random.randint(1, 100) <= trigger_chance:
