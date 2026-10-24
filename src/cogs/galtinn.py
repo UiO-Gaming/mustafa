@@ -39,7 +39,7 @@ class Galtinn(commands.Cog):
 
         if discordbruker and brukernavn:
             embed = embed_templates.error_fatal("Du kan ikke oppgi både brukernavn og discordbruker")
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
 
         if not brukernavn and not discordbruker:
             discordbruker = interaction.user
