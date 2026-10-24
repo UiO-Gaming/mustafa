@@ -439,7 +439,8 @@ class TempVoiceHelper:
 
         self.bot.logger.info(f"Created temporary voice channel {channel} in {interaction.guild}")
 
-        self.temp_vc_channels[channel] = {"created": datetime.now(), "no_members_since": None}
+        now = datetime.now()
+        self.temp_vc_channels[channel] = {"created": now, "no_members_since": now}
 
         try:
             await interaction.user.move_to(channel)
