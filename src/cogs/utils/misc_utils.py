@@ -179,32 +179,32 @@ async def put_text_in_box(
     # We multiply by 0.9 to give some padding
     w, h = (x2 - x1) * 0.9, (y2 - y1) * 0.9
 
-    # Initialize font width/height to 0 in order to run the while loops below at least once
-    font_width = 0
-    font_height = 0
-
     # Add newlines to the text. Here we have gone with 15 characters per line
     # This is arbitrary, but seems to work well
     text = textwrap.fill(text, width=15)
 
-    # Increase the font size until the longest line of text does not fit in the bounding box anymore
+    # Increase the font size as long as the next size still fits in the bounding box
     # We also have to check the height, since the text might be too tall for the box
-    while font_width < w and font_height < h:
-        font = ImageFont.truetype(font_path, font_size)
+    font = ImageFont.truetype(font_path, font_size)
+    while True:
+        next_font = ImageFont.truetype(font_path, font_size + 1)
 
-        longest_line = max(text.split("\n"), key=lambda x: font.getlength(x))
-        font_width = font.getlength(longest_line)
+        longest_line = max(text.split("\n"), key=lambda x: next_font.getlength(x))
+        font_width = next_font.getlength(longest_line)
 
         # bbox doesn't work with multiline text, so we have to calculate the height manually
         # take the height of the bounding box, multiply by 1.5 (our assumed line dividor height)
         # after that, we multiply by the number of lines
-        font_box = font.getbbox(text)
+        font_box = next_font.getbbox(text)
         font_height = ((font_box[3] - font_box[1]) * 1.5) * text.count("\n")
 
+        if font_width >= w or font_height >= h:
+            break
+
+        font = next_font
         font_size += 1
 
     # Actually draw the text
-    draw.multiline_textbbox((w, h), text=text, font=font, align="center", anchor="mm")
     center_of_box = ((x1 + x2) // 2, (y1 + y2) // 2)
     draw.multiline_text(center_of_box, text, font=font, fill=color, align="center", anchor="mm")
 
