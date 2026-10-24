@@ -2,6 +2,7 @@ import asyncio
 import signal
 from os import listdir
 from time import time
+from zoneinfo import ZoneInfo
 
 import discord
 import psycopg2
@@ -72,6 +73,7 @@ class Bot(commands.Bot):
         self.presence = config["bot"].get("presence", {})
         self.emoji = config.get("emoji", {})
         self.misc = config.get("misc", {})
+        self.timezone = ZoneInfo(tz) if (tz := config.get("timezone")) else None  # None means the system timezone
 
     async def setup_hook(self):
         # Docker stops the container with SIGTERM. Close gracefully so cogs can save their caches

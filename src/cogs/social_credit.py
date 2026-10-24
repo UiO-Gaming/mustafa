@@ -316,7 +316,7 @@ class SocialCredit(commands.Cog):
 
         illegal_hours = [5, 6, 7, 8, 9]
 
-        if message.created_at.hour in illegal_hours:
+        if message.created_at.astimezone(self.bot.timezone).hour in illegal_hours:
             await self.social_punishment(message.author.id, 10, "early-bird")
 
     @roll(percent=50)
@@ -331,7 +331,7 @@ class SocialCredit(commands.Cog):
 
         happy_hours = [1, 2, 3, 4]
 
-        if message.created_at.hour in happy_hours:
+        if message.created_at.astimezone(self.bot.timezone).hour in happy_hours:
             await self.social_reward(message.author.id, 10, "night-owl")
 
     async def robort_slur(self, message: discord.Message):

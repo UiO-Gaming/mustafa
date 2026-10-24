@@ -2,6 +2,9 @@ config_mode: dev
 
 dev_guild: 747542543750660178
 
+# IANA timezone name. Leave empty to use the system's timezone
+timezone: Europe/Oslo
+
 # Bot settings
 bot:
   token:
