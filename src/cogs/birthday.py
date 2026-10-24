@@ -73,8 +73,9 @@ class Birthday(commands.Cog):
         guild = self.bot.get_guild(self.bot.UIO_GAMING_GUILD_ID)
         channel = guild.get_channel(747542544291987597)
         for birthday in birthdays:
-            user = await guild.fetch_member(birthday[0])
-            if not user:
+            try:
+                user = await guild.fetch_member(birthday[0])
+            except discord.NotFound:
                 self.bot.logger.warning(f"Could not find user with ID {birthday[0]}")
                 continue
 
