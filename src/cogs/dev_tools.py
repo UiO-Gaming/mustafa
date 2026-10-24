@@ -33,8 +33,17 @@ class DevTools(commands.Cog):
         ctx (commands.Context): Context object
         """
 
-        await asyncio.create_subprocess_shell("git pull")
-        await ctx.reply("Done!")
+        process = await asyncio.create_subprocess_exec(
+            "git", "pull", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
+        )
+        stdout, _ = await process.communicate()
+        output = stdout.decode(errors="replace").strip() or "Ingen output"
+
+        if process.returncode == 0:
+            embed = embed_templates.success(f"```\n{output[:4000]}\n```")
+        else:
+            embed = embed_templates.error_fatal(f"git pull feilet ({process.returncode})\n```\n{output[:3950]}\n```")
+        await ctx.reply(embed=embed)
 
     @commands.is_owner()
     @commands.bot_has_permissions(embed_links=True)
