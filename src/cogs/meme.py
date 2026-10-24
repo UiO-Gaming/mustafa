@@ -1,3 +1,4 @@
+import asyncio
 import functools
 import os
 import subprocess
@@ -203,16 +204,20 @@ class Meme(commands.Cog):
             "quiet": True,
             "no_warnings": True,
         }
-        with yt_dlp.YoutubeDL(options) as ydl:
-            prefix = "ytsearch1:" if not url else ""
-            search_term = søk if not url else url
-            try:
-                info = ydl.extract_info(f"{prefix}{search_term}", download=True)
-            except Exception as e:
-                self.bot.logger.warning(f"Failed to download media {e}")
-                return await interaction.followup.send(
-                    embed=embed_templates.error_fatal("Klarte ikke å laste ned den forespurte sangen!"),
-                )
+        prefix = "ytsearch1:" if not url else ""
+        search_term = søk if not url else url
+
+        def download():
+            with yt_dlp.YoutubeDL(options) as ydl:
+                return ydl.extract_info(f"{prefix}{search_term}", download=True)
+
+        try:
+            info = await asyncio.to_thread(download)
+        except Exception as e:
+            self.bot.logger.warning(f"Failed to download media {e}")
+            return await interaction.followup.send(
+                embed=embed_templates.error_fatal("Klarte ikke å laste ned den forespurte sangen!"),
+            )
 
         # AAAAAAAAAAAAAAA MY EYES
         if "entries" in info:
@@ -240,7 +245,7 @@ class Meme(commands.Cog):
         ]
 
         try:
-            subprocess.run(command, check=True)
+            await asyncio.to_thread(subprocess.run, command, check=True)
             self.bot.logger.info(f"Successfully created nightcorified song at {nightcored}")
         except subprocess.CalledProcessError as e:
             self.bot.logger.error(f"Error during conversion: {e}")
