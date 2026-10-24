@@ -192,6 +192,7 @@ class Meme(commands.Cog):
             "format": "bestaudio/best",
             "default_search": "ytsearch",
             "noplaylist": True,
+            "allowed_extractors": ["default", "-generic"],
             "match_filter": duration_filter,
             "postprocessors": [
                 {
