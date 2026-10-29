@@ -1,10 +1,12 @@
 import asyncio
+import datetime
 import signal
 from os import environ
 from os import listdir
 from os.path import realpath
 from time import time
 from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfoNotFoundError
 
 import aiohttp
 import discord
@@ -12,6 +14,7 @@ import yaml
 from discord.ext import commands
 from psycopg_pool import AsyncConnectionPool
 
+from cogs.utils import misc_utils
 from cogs.utils.database import Database
 from logger import BotLogger
 
@@ -91,6 +94,12 @@ class Bot(commands.Bot):
         self.misc = config.get("misc", {})
         self.timezone = ZoneInfo(tz) if (tz := config.get("timezone")) else None  # None means the system timezone
         self.timezone_name = tz or self.system_timezone_name()
+
+        try:
+            midnight_tz = self.timezone or ZoneInfo(self.timezone_name)
+        except (TypeError, ValueError, ZoneInfoNotFoundError):
+            midnight_tz = datetime.UTC
+        misc_utils.MIDNIGHT = datetime.time(tzinfo=midnight_tz)
 
     async def setup_hook(self):
         self.http_session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15))

@@ -3,7 +3,6 @@ import datetime
 import functools
 import textwrap
 from math import ceil
-from zoneinfo import ZoneInfo
 
 import aiohttp
 import cv2
@@ -13,7 +12,8 @@ from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
 
-MIDNIGHT = datetime.time(hour=0, minute=0, tzinfo=ZoneInfo("Europe/Oslo"))
+# Midnight in the bot's time zone. run.py sets it before loading the cogs
+MIDNIGHT = datetime.time(tzinfo=datetime.UTC)
 
 
 def localize(dt: datetime.datetime, tz: datetime.tzinfo | None) -> datetime.datetime:
