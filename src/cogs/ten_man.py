@@ -17,6 +17,9 @@ from cogs.utils import embed_templates
 from cogs.utils.discord_utils import Lobby
 from cogs.utils.discord_utils import LobbyView
 
+# Seconds without any interaction before the menus and buttons are disabled
+SELECTION_TIMEOUT = 300
+
 
 class TenMan(commands.Cog):
     """Join lobbies"""
@@ -116,7 +119,7 @@ class TenManView(LobbyView):
 
 class TeamLeaderView(discord.ui.View):
     def __init__(self, lobby: Lobby, bot: commands.Bot):
-        super().__init__(timeout=15)
+        super().__init__(timeout=SELECTION_TIMEOUT)
         self.lobby = lobby
         self.bot = bot
         self.message: discord.Message | None = None
@@ -129,8 +132,8 @@ class TeamLeaderView(discord.ui.View):
         if self.message:
             try:
                 await self.message.edit(view=self)
-            except discord.NotFound:
-                pass
+            except discord.HTTPException:
+                pass  # Deleted, or the interaction token used to edit it expired after 15 minutes
 
     def disable_interaction(self):
         self.bot.logger.info("TeamLeaderView disabled")
@@ -186,7 +189,7 @@ class TeamLeaderSelectMenu(discord.ui.Select):
 
 class TeamSelectView(discord.ui.View):
     def __init__(self, lobby: Lobby, bot: commands.Bot, team_leaders: list[discord.User], turn: int):
-        super().__init__(timeout=15)
+        super().__init__(timeout=SELECTION_TIMEOUT)
         self.lobby = lobby
         self.bot = bot
         self.players = [p for p in self.lobby.players if p not in team_leaders]
@@ -202,8 +205,8 @@ class TeamSelectView(discord.ui.View):
         if self.message:
             try:
                 await self.message.edit(view=self)
-            except discord.NotFound:
-                pass
+            except discord.HTTPException:
+                pass  # Deleted, or the interaction token used to edit it expired after 15 minutes
 
     def disable_interaction(self):
         self.bot.logger.info("TeamSelectView disabled")
