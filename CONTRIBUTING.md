@@ -15,13 +15,13 @@ All kode skal være typet til beste evne. Dette betyr at man for eksempel også 
 Alle funksjoner skal ha docsstrings som følger denne stilen:
 
 ```python
-def greet(self, navn: str) -> str:
+def greet(self, name: str) -> str:
     """
     Greets the invoking user using the inputted name
 
     Parameters
     ----------
-    navn (str): The user's inputted name
+    name (str): The user's inputted name
 
     Returns
     ----------
@@ -45,6 +45,8 @@ Decorators skal sorteres som følgende:
 4. User permissions
 5. Cooldown
 6. Kommando (denne må alltid være med)
+7. Parameternavn (`rename`)
+8. Parameterbeskrivelser (`describe`)
 
 Merk deg at ikke alle disse trenger å være med, og ikke alle sjekker som finnes er nevnt her. Bruk hodet og tenk hva som er logisk for deg om du møter på en slik situasjon.
 
@@ -52,9 +54,18 @@ Merk deg at ikke alle disse trenger å være med, og ikke alle sjekker som finne
 
 Ja, det tittelen sier. Det er et unntak for returstatements hvis det er tatt i bruk early returning.
 
-### Norske parameternavn i kommandoer
+### Norske parameternavn og beskrivelser i kommandoer
 
-Selv om Discord.py 2.0 støtter oversettelser, er ikke dette noe vi implementerer. Med tanke på at botten er norsk og for norske brukere må dette reflekteres i parameternavn siden dette er hva Discord bruker som grensesnitt for kommandoer.
+Selv om Discord.py 2.0 støtter oversettelser, er ikke dette noe vi implementerer. Botten er norsk og for norske brukere, så alt Discord viser av parametere skal være på norsk. I koden har parameterne likevel engelske navn. Gi dem et norsk navn i Discord med `@app_commands.rename` og en norsk beskrivelse med `@app_commands.describe`. Alle parametere skal ha en beskrivelse. Plasser disse rett under decoratoren for kommandoen:
+
+```python
+@app_commands.command(name="hils", description="Hils på en bruker")
+@app_commands.rename(user="bruker")
+@app_commands.describe(user="Brukeren du vil hilse på")
+async def greet(self, interaction: discord.Interaction, user: discord.User):
+```
+
+`rename` kan sløyfes om navnet er likt på begge språk, som f.eks `url`.
 
 ### Engelsk for alt annet
 
