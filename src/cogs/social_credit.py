@@ -1,16 +1,3 @@
-import re
-from dataclasses import dataclass
-from random import randint
-
-import discord
-from discord import app_commands
-from discord.ext import commands
-from discord.ext import tasks
-
-from cogs.utils import discord_utils
-from cogs.utils import embed_templates
-from cogs.utils import misc_utils
-
 """
 ------ GJORT ------
 - score for skriving om morgenen (kl. 5-9)
@@ -24,6 +11,19 @@ from cogs.utils import misc_utils
 - score sitte i afk voice
 + score for å sitte i voice
 """
+
+import re
+from dataclasses import dataclass
+from random import randint
+
+import discord
+from discord import app_commands
+from discord.ext import commands
+from discord.ext import tasks
+
+from cogs.utils import discord_utils
+from cogs.utils import embed_templates
+from cogs.utils import misc_utils
 
 
 @dataclass

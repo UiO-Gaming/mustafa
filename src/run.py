@@ -14,8 +14,8 @@ import yaml
 from discord.ext import commands
 from psycopg_pool import AsyncConnectionPool
 
+from cogs.utils import database
 from cogs.utils import misc_utils
-from cogs.utils.database import Database
 from logger import BotLogger
 
 DATABASE_RELIANT_COGS = {
@@ -75,7 +75,7 @@ class Bot(commands.Bot):
                 max_size=5,
                 open=False,
             )
-            self.db = Database(self.db_pool)
+            self.db = database.Database(self.db_pool)
 
         if self.check_credentials(config["sanity"], SANITY_RELIANT_COGS):
             self.sanity = config["sanity"]

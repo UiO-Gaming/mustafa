@@ -2,8 +2,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from cogs.utils import discord_utils
 from cogs.utils import embed_templates
-from cogs.utils.discord_utils import TempVoiceHelper
 
 
 class TempVoice(commands.Cog):
@@ -16,7 +16,7 @@ class TempVoice(commands.Cog):
         bot (commands.Bot): The bot instance
         """
 
-        self.temp_voice_helper = TempVoiceHelper(bot)
+        self.temp_voice_helper = discord_utils.TempVoiceHelper(bot)
 
     async def cog_load(self):
         """

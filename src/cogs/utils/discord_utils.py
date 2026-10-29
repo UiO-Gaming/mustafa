@@ -9,9 +9,8 @@ import psycopg
 from discord.ext import commands
 from discord.ext import tasks
 
-from . import embed_templates
-from .misc_utils import Paginator
-from .misc_utils import log_errors
+from cogs.utils import embed_templates
+from cogs.utils import misc_utils
 
 
 async def send_as_txt_file(interaction: discord.Interaction, content: str, filename: str):
@@ -53,7 +52,7 @@ class ScrollerButton(discord.ui.Button):
 
     def __init__(
         self,
-        paginator: Paginator,
+        paginator: misc_utils.Paginator,
         button_action: callable,
         content_constructor: callable,
         owner: discord.User | discord.Member,
@@ -103,7 +102,10 @@ class Scroller(discord.ui.View):
     """View that allows scrolling through pages of data using the pagination module"""
 
     def __init__(
-        self, paginator: Paginator, owner: discord.User | discord.Member, content_constructor: callable = None
+        self,
+        paginator: misc_utils.Paginator,
+        owner: discord.User | discord.Member,
+        content_constructor: callable = None,
     ):
         """
         Parameters
@@ -566,7 +568,7 @@ class TempVoiceHelper:
                 self.temp_vc_channels[channel]["no_members_since"] = None
 
     @tasks.loop(minutes=1)
-    @log_errors
+    @misc_utils.log_errors
     async def check_temp_vc_channels(self):
         """
         Check for temporary voice channels that have been inactive for 1 minute

@@ -11,11 +11,9 @@ import numpy as np
 from discord import app_commands
 from discord.ext import commands
 
+from cogs.utils import discord_utils
 from cogs.utils import embed_templates
 from cogs.utils import misc_utils
-from cogs.utils.discord_utils import Lobby
-from cogs.utils.discord_utils import LobbyView
-from cogs.utils.discord_utils import open_lobby
 
 
 class CS2Bingo(commands.Cog):
@@ -29,7 +27,7 @@ class CS2Bingo(commands.Cog):
         """
 
         self.bot = bot
-        self.active_lobbies: dict[int, Lobby] = {}
+        self.active_lobbies: dict[int, discord_utils.Lobby] = {}
 
     bingo_group = app_commands.Group(name="cs2bingo", description="Bingo commands for CS2")
 
@@ -45,7 +43,7 @@ class CS2Bingo(commands.Cog):
         interaction (discord.Interaction): The slash command interaction
         """
 
-        await open_lobby(interaction, self.active_lobbies, BingoView, "Bingolobby", timedelta(minutes=10))
+        await discord_utils.open_lobby(interaction, self.active_lobbies, BingoView, "Bingolobby", timedelta(minutes=10))
 
 
 class BingoGenerator:
@@ -167,10 +165,10 @@ class BingoGenerator:
         return cv2.imencode(".png", image)[1].tobytes()
 
 
-class BingoView(LobbyView):
+class BingoView(discord_utils.LobbyView):
     """Bingo lobby that sends every player a bingo sheet when started"""
 
-    def __init__(self, lobby: Lobby, bot: commands.Bot):
+    def __init__(self, lobby: discord_utils.Lobby, bot: commands.Bot):
         """
         Parameters
         ----------

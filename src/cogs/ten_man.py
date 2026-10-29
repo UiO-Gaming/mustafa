@@ -11,10 +11,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from cogs.utils import discord_utils
 from cogs.utils import embed_templates
-from cogs.utils.discord_utils import Lobby
-from cogs.utils.discord_utils import LobbyView
-from cogs.utils.discord_utils import open_lobby
 
 # Seconds without any interaction before the menus and buttons are disabled
 SELECTION_TIMEOUT = 300
@@ -31,7 +29,7 @@ class TenMan(commands.Cog):
         """
 
         self.bot = bot
-        self.active_lobbies: dict[int, Lobby] = {}
+        self.active_lobbies: dict[int, discord_utils.Lobby] = {}
 
     ten_man_group = app_commands.Group(name="10man", description="For planlegging og arrangering av 10 mans")
 
@@ -47,10 +45,12 @@ class TenMan(commands.Cog):
         interaction (discord.Interaction): The slash command interaction
         """
 
-        await open_lobby(interaction, self.active_lobbies, TenManView, "10 Man Lobby", timedelta(minutes=30))
+        await discord_utils.open_lobby(
+            interaction, self.active_lobbies, TenManView, "10 Man Lobby", timedelta(minutes=30)
+        )
 
 
-class TenManView(LobbyView):
+class TenManView(discord_utils.LobbyView):
     """The lobby players join before the teams are picked"""
 
     @discord.ui.button(label="Start", style=discord.ButtonStyle.green)
@@ -153,7 +153,7 @@ class TeamDraft:
 class StageView(discord.ui.View):
     """A step of the flow after the lobby has closed"""
 
-    def __init__(self, lobby: Lobby, bot: commands.Bot, message: discord.PartialMessage):
+    def __init__(self, lobby: discord_utils.Lobby, bot: commands.Bot, message: discord.PartialMessage):
         """
         Parameters
         ----------
@@ -221,7 +221,7 @@ class StageView(discord.ui.View):
 class TeamLeaderView(StageView):
     """The host picks two team leaders"""
 
-    def __init__(self, lobby: Lobby, bot: commands.Bot, message: discord.PartialMessage):
+    def __init__(self, lobby: discord_utils.Lobby, bot: commands.Bot, message: discord.PartialMessage):
         """
         Parameters
         ----------
