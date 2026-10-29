@@ -605,7 +605,7 @@ class Anime(commands.Cog):
 
         user_name = data["name"]
         profile_pic = data["avatar"]["large"]
-        chapters_read = round(data["statistics"]["manga"]["chaptersRead"] / 1440, 1)
+        chapters_read = data["statistics"]["manga"]["chaptersRead"]
         volumes_read = data["statistics"]["manga"]["volumesRead"]
         color = self.convert_color(data["options"]["profileColor"])
 
