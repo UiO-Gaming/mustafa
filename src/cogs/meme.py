@@ -2,6 +2,7 @@ import asyncio
 import functools
 import os
 import subprocess
+import tempfile
 from io import BytesIO
 
 import cv2
@@ -21,6 +22,11 @@ from PIL import UnidentifiedImageError
 from cogs.utils import discord_utils
 from cogs.utils import embed_templates
 from cogs.utils import misc_utils
+
+NIGHTCORE_SPEED = 1.33
+# Resample first so the speed-up is the same whatever the source's sample rate is
+NIGHTCORE_FILTER = f"aresample=44100,asetrate=44100*{NIGHTCORE_SPEED},aresample=44100,bass=g=6:f=100:w=0.5,volume=0.8"
+MP3_BITRATES = [192, 160, 128, 112, 96, 80, 64]
 
 
 class Meme(commands.Cog):
@@ -213,9 +219,62 @@ class Meme(commands.Cog):
 
         return output
 
-    # I can't be arsed to make this code good rn
-    # This code is absolute horse ass
-    # TODO:: improve this
+    @staticmethod
+    def nightcore_bitrate(duration: float, filesize_limit: int) -> int | None:
+        """
+        Get the highest MP3 bitrate that keeps a nightcored song within the upload limit
+
+        Parameters
+        ----------
+        duration (float): The duration of the original song in seconds
+        filesize_limit (int): The maximum file size in bytes
+
+        Returns
+        ----------
+        (int | None): The bitrate in kbps. None if the song is too long even at the lowest bitrate
+        """
+
+        # Leave some room for the MP3 headers
+        max_bits = filesize_limit * 8 * 0.95
+        output_duration = duration / NIGHTCORE_SPEED
+        return next((kbps for kbps in MP3_BITRATES if kbps * 1000 * output_duration <= max_bits), None)
+
+    @staticmethod
+    def download_audio(target: str, directory: str, filesize_limit: int) -> dict | None:
+        """
+        Download the audio of a song, unless it's too long to send as nightcore
+
+        Parameters
+        ----------
+        target (str): A link to the song or a yt-dlp search
+        directory (str): The directory to download to
+        filesize_limit (int): The maximum file size of the nightcored song in bytes
+
+        Returns
+        ----------
+        (dict | None): The yt-dlp info of the downloaded song. None if nothing was found or it's too long
+        """
+
+        options = {
+            "format": "bestaudio/best",
+            "noplaylist": True,
+            "allowed_extractors": ["default", "-generic"],
+            "outtmpl": os.path.join(directory, "source.%(ext)s"),
+            "quiet": True,
+            "no_warnings": True,
+            "noprogress": True,
+        }
+
+        with yt_dlp.YoutubeDL(options) as ydl:
+            info = ydl.extract_info(target, download=False)
+            if "entries" in info:
+                info = next(iter(info["entries"]), None)
+
+            if not info or not info.get("duration") or not Meme.nightcore_bitrate(info["duration"], filesize_limit):
+                return None
+
+            return ydl.process_ie_result(info, download=True)
+
     @app_commands.checks.bot_has_permissions(attach_files=True)
     @app_commands.checks.cooldown(1, 30)
     @app_commands.command(name="nightcore", description="nightcore en gitt lyd")
@@ -229,106 +288,63 @@ class Meme(commands.Cog):
         ----------
         interaction (discord.Interaction): The interaction
         query (str|None): Search term to look up the media on YouTube
-        url (str|None): Link to the source media
+        url (str|None): Link to the source media. Used instead of the search term if both are given
         """
 
-        await interaction.response.defer()
-
         if not url and not query:
-            return await interaction.followup.send(
+            return await interaction.response.send_message(
                 embed=embed_templates.error_warning("Du må enten gi meg en link eller noe å søke etter"),
                 ephemeral=True,
             )
 
-        max_seconds = 3600
+        await interaction.response.defer()
 
-        def duration_filter(info_dict, *, incomplete):
-            """Filters out videos longer than the specified limit."""
-            duration = info_dict.get("duration")
-            if duration and duration > max_seconds:
-                return f"Skipping: Video is too long ({duration} seconds)"
-            return None
-
-        # make sure the url is used if both variables are used
-        pre_nightcored = f"./src/assets/temp/{interaction.user.id}_pre_nightcore"
-        options = {
-            "format": "bestaudio/best",
-            "default_search": "ytsearch",
-            "noplaylist": True,
-            "allowed_extractors": ["default", "-generic"],
-            "match_filter": duration_filter,
-            "postprocessors": [
-                {
-                    "key": "FFmpegExtractAudio",
-                    "preferredcodec": "mp3",
-                    "preferredquality": "192",
-                }
-            ],
-            "outtmpl": f"{pre_nightcored}",
-            "quiet": True,
-            "no_warnings": True,
-        }
-        prefix = "ytsearch1:" if not url else ""
-        search_term = query if not url else url
-
-        def download():
-            with yt_dlp.YoutubeDL(options) as ydl:
-                return ydl.extract_info(f"{prefix}{search_term}", download=True)
-
-        try:
-            info = await asyncio.to_thread(download)
-        except Exception as e:
-            self.bot.logger.warning(f"Failed to download media {e}")
-            return await interaction.followup.send(
-                embed=embed_templates.error_fatal("Klarte ikke å laste ned den forespurte sangen!"),
-            )
-
-        # AAAAAAAAAAAAAAA MY EYES
-        if "entries" in info:
-            info = info["entries"][0] if info["entries"] else None
-        if not info or not info.get("duration") or info.get("duration") > max_seconds:
-            return await interaction.followup.send(
-                embed=embed_templates.error_warning(
-                    "Fant ingen gyldig lyd (kan være for lang eller utilgjengelig)."
-                    + "Jeg er for lat til å fikse noe ordentlig"
-                ),
-                ephemeral=True,
-            )
-
-        nightcored = f"./src/assets/temp/{interaction.user.id}_nightcore.mp3"
-        command = [
-            "ffmpeg",
-            "-loglevel",
-            "error",
-            "-i",
-            f"{pre_nightcored}.mp3",
-            "-af",
-            "asetrate=44100*1.33,atempo=1,aresample=44100,bass=g=6:f=100:w=0.5,volume=0.8",
-            nightcored,
-            "-y",  # Overwrite if exists
-        ]
-
-        try:
-            await asyncio.to_thread(subprocess.run, command, check=True)
-            self.bot.logger.info(f"Successfully created nightcorified song at {nightcored}")
-        except subprocess.CalledProcessError as e:
-            self.bot.logger.error(f"Error during conversion: {e}")
-            await interaction.followup.send(embed=embed_templates.error_fatal("Klarte ikke å nightcore sangen!"))
-        else:
+        with tempfile.TemporaryDirectory(dir="./src/assets/temp") as directory:
+            target = url or f"ytsearch1:{query}"
             try:
-                await interaction.followup.send(file=discord.File(nightcored))
-            except discord.errors.HTTPException:
-                self.bot.logger.warning(f"Failed to send temporary file {nightcored}")
-                await interaction.followup.send(
-                    embed=embed_templates.error_warning("Failed to send file. It is probably too big."),
-                    ephemeral=True,
+                info = await asyncio.to_thread(Meme.download_audio, target, directory, interaction.filesize_limit)
+            except yt_dlp.utils.DownloadError as e:
+                self.bot.logger.warning(f"Failed to download {target}: {e}")
+                return await interaction.followup.send(
+                    embed=embed_templates.error_fatal("Klarte ikke å laste ned den forespurte sangen!")
                 )
 
-        for temp_file in (nightcored, f"{pre_nightcored}.mp3"):
+            if not info:
+                return await interaction.followup.send(
+                    embed=embed_templates.error_warning("Fant ingen lyd, eller så er den for lang til å sendes")
+                )
+
+            bitrate = Meme.nightcore_bitrate(info["duration"], interaction.filesize_limit)
+            nightcored = os.path.join(directory, "nightcore.mp3")
+            command = [
+                "ffmpeg",
+                "-loglevel",
+                "error",
+                "-i",
+                info["requested_downloads"][0]["filepath"],
+                "-af",
+                NIGHTCORE_FILTER,
+                "-b:a",
+                f"{bitrate}k",
+                nightcored,
+            ]
+
             try:
-                os.remove(temp_file)
-            except (FileNotFoundError, PermissionError):
-                self.bot.logger.warning(f"Failed to remove temporary file {temp_file}")
+                await asyncio.to_thread(subprocess.run, command, check=True, capture_output=True, text=True)
+            except subprocess.CalledProcessError as e:
+                self.bot.logger.error(f"Failed to nightcore {target}: {e.stderr}")
+                return await interaction.followup.send(
+                    embed=embed_templates.error_fatal("Klarte ikke å nightcore sangen!")
+                )
+
+            try:
+                await interaction.followup.send(
+                    content=discord.utils.escape_markdown(info.get("title", "")),
+                    file=discord.File(nightcored, filename="nightcore.mp3"),
+                )
+            except discord.HTTPException as e:
+                self.bot.logger.warning(f"Failed to send nightcored {target}: {e}")
+                await interaction.followup.send(embed=embed_templates.error_fatal("Klarte ikke å sende filen"))
 
     @app_commands.checks.bot_has_permissions(attach_files=True)
     @app_commands.checks.cooldown(1, 60)
