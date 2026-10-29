@@ -14,6 +14,8 @@ Merk at konfigurasjonsfilen har felt for bl.a. databasekobling. Disse er ikke p�
 
 `config_mode` bestemmer hvor slash-kommandoene synkroniseres. Med `dev` synkroniseres de bare til serveren i `dev_guild`, der de dukker opp med en gang. Med `prod` synkroniseres de globalt.
 
+Bruk en egen botbruker når du utvikler lokalt. Kjører du `dev` med samme token som produksjonsbotten, får serveren i `dev_guild` både de globale kommandoene og kopiene, og alle kommandoer vises to ganger. Botten logger en advarsel når det skjer. I `prod` fjernes kommandoer som er igjen i `dev_guild` fra tidligere `dev`-kjøringer automatisk.
+
 ### Valgfrie funksjoner
 
 Mangler et felt, skrus funksjonene som trenger det av når botten starter:

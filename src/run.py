@@ -130,12 +130,24 @@ class Bot(commands.Bot):
                 name = file[:-3]
                 await bot.load_extension(f"cogs.{name}")
 
-        # Sync slash commands
+        # Sync slash commands. A sync only replaces the commands in its own scope, so commands left
+        # in the other scope (global or guild) from running in the other mode show up as duplicates
+        guild = discord.Object(id=self.guild_id)
         if self.config_mode == "prod":
             await self.tree.sync(guild=None)
+            try:
+                self.tree.clear_commands(guild=guild)
+                await self.tree.sync(guild=guild)
+            except discord.HTTPException as e:
+                self.logger.warning(f"Could not remove leftover guild commands in {self.guild_id}: {e}")
         else:
-            self.tree.copy_global_to(guild=discord.Object(id=self.guild_id))
-            await self.tree.sync(guild=discord.Object(id=self.guild_id))
+            self.tree.copy_global_to(guild=guild)
+            await self.tree.sync(guild=guild)
+            if global_commands := await self.tree.fetch_commands():
+                self.logger.warning(
+                    f"This bot application also has {len(global_commands)} global slash commands, which show up "
+                    + "twice in the dev guild. Use a separate bot application for development, see the README"
+                )
 
     async def close(self):
         """
