@@ -384,6 +384,7 @@ class Misc(commands.Cog):
             settings={
                 "TIMEZONE": str(self.bot.timezone) if self.bot.timezone else "local",
                 "RETURN_AS_TIMEZONE_AWARE": True,
+                "PREFER_DATES_FROM": "future",
             },
         )
         if not parsed_time:
