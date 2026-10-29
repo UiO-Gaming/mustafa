@@ -20,6 +20,7 @@ from logger import BotLogger
 
 DATABASE_RELIANT_COGS = {
     "birthday.py",
+    "funreplies.py",
     "gullkorn.py",
     "mc_whitelist.py",
     "social_credit.py",
