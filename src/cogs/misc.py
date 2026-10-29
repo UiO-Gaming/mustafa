@@ -17,6 +17,25 @@ from cogs.utils import discord_utils
 from cogs.utils import embed_templates
 from cogs.utils import misc_utils
 
+# Some kaomoji from kaomoji.moe. They don't have an API :(
+KAOMOJI = [
+    "(・`ω´・)",
+    ";;w;;",
+    "owo",
+    "UwU",
+    ">w<",
+    "^w^",
+    "(◕ᴥ◕)",
+    "ʕ•ᴥ•ʔ",
+    "(*≧ω≦*)",
+    "(ﾉ´ヮ`)ﾉ*: ･ﾟ",
+    "(｡♥‿♥｡)",
+    "(✿◠‿◠)",
+    "(⁄ ⁄•⁄ω⁄•⁄ ⁄)",
+    "(´｡• ω •｡`)",
+    "x3",
+]
+
 
 class Misc(commands.Cog):
     """Miscellaneous commands that don't fit anywhere else"""
@@ -69,7 +88,12 @@ class Misc(commands.Cog):
         text = re.sub(r"th", "d", text, flags=re.IGNORECASE)
         text = text.replace("ove", "uv")
 
-        # TODO: add kaomoji? https://kaomoji.moe/
+        # Add a kaomoji after every sentence, and at the end if the text doesn't end with punctuation
+        text = re.sub(
+            r"[.!?]+(?=\s|$)|(?<![.!?])$",
+            lambda match: f"{match.group()} {discord.utils.escape_markdown(random.choice(KAOMOJI))}",
+            text.rstrip(),
+        )
 
         if len(text) >= 1000:
             embed = embed_templates.error_warning("Teksten er for lang")
