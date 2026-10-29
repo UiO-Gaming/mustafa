@@ -206,16 +206,9 @@ def put_text_in_box(
     while True:
         next_font = ImageFont.truetype(font_path, font_size + 1)
 
-        longest_line = max(text.split("\n"), key=lambda x: next_font.getlength(x))
-        font_width = next_font.getlength(longest_line)
+        left, top, right, bottom = draw.multiline_textbbox((0, 0), text, font=next_font, align="center")
 
-        # bbox doesn't work with multiline text, so we have to calculate the height manually
-        # take the height of the bounding box, multiply by 1.5 (our assumed line dividor height)
-        # after that, we multiply by the number of lines
-        font_box = next_font.getbbox(text)
-        font_height = ((font_box[3] - font_box[1]) * 1.5) * text.count("\n")
-
-        if font_width >= w or font_height >= h:
+        if right - left >= w or bottom - top >= h:
             break
 
         font = next_font
