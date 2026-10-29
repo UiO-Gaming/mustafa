@@ -97,7 +97,7 @@ class BingoGenerator:
     async def sample_cells(cls, players: list[str], bot: commands.Bot) -> dict[str, list[str]]:
         assert 0 < len(players) <= 10
 
-        default_space = cls.CELLS["all"]
+        default_space = list(cls.CELLS["all"])
 
         if len(players) < 5:
             default_space += cls.CELLS["randoms"]
