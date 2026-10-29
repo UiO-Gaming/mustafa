@@ -44,6 +44,9 @@ class WordCloud(commands.Cog):
         # so a user's words can't be written after their data has been deleted
         self.cache_lock = asyncio.Lock()
 
+        # Shared by all /ordsky generer siste invocations. Discord allows 50 requests per second for the whole bot
+        self.history_rate_limiter = misc_utils.RateLimiter(per_second=10)
+
         try:
             nltk.data.find("corpora/stopwords")
         except LookupError:
@@ -466,6 +469,74 @@ class WordCloud(commands.Cog):
         embed.set_image(url=f"attachment://wordcloud_{interaction.user.id}.png")
         await interaction.followup.send(embed=embed, file=word_cloud_file)
 
+    def readable_channels(self, guild: discord.Guild, user: discord.Member) -> list[discord.TextChannel]:
+        """
+        Get the text channels to read a user's recent messages from
+
+        Parameters
+        ----------
+        guild (discord.Guild): The guild to get channels from
+        user (discord.Member): The user whose messages are read
+
+        Returns
+        ----------
+        list[discord.TextChannel]: Channels the user can write in, the bot can read and that aren't private
+        """
+
+        # The word cloud is posted publicly, so skip private channels like board chats.
+        # Without a member role, only channels everyone can write in count as public
+        member_role = guild.get_role(self.bot.role_ids.get("member"))
+        public_roles = [guild.default_role, member_role] if member_role else [guild.default_role]
+
+        channels = []
+        for channel in guild.text_channels:
+            bot_permissions = channel.permissions_for(guild.me)
+            if (
+                channel.permissions_for(user).send_messages
+                and bot_permissions.read_messages
+                and bot_permissions.read_message_history
+                and any(channel.permissions_for(role).send_messages for role in public_roles)
+            ):
+                channels.append(channel)
+
+        return channels
+
+    async def fetch_recent_tokens(self, channel: discord.TextChannel, user: discord.Member, limit: int) -> list[str]:
+        """
+        Tokenize a user's messages among the most recent messages in a channel
+
+        Parameters
+        ----------
+        channel (discord.TextChannel): The channel to read
+        user (discord.Member): The user whose messages are tokenized
+        limit (int): How many of the most recent messages in the channel to read
+
+        Returns
+        ----------
+        list[str]: The tokens of the user's messages
+        """
+
+        tokens = []
+        before = None
+        while limit > 0:
+            # One request per page of 100 messages
+            await self.history_rate_limiter.wait()
+            try:
+                messages = [message async for message in channel.history(limit=min(limit, 100), before=before)]
+            except discord.Forbidden:
+                break
+
+            for message in messages:
+                if message.author.id == user.id and self.can_count_message(message):
+                    tokens += self.tokenize(message.clean_content)
+
+            if len(messages) < min(limit, 100):
+                break
+            limit -= len(messages)
+            before = messages[-1]
+
+        return tokens
+
     @app_commands.checks.bot_has_permissions(embed_links=True, attach_files=True)
     @app_commands.checks.cooldown(1, 30)
     @wordcloud_generate_group.command(
@@ -473,46 +544,24 @@ class WordCloud(commands.Cog):
         description="Generer en ordsky basert på dine mest frekvente sagte ord fra de siste meldingene dine",
     )
     @app_commands.rename(amount="antall")
-    @app_commands.describe(amount="Hvor mange meldinger som skal søkes gjennom. Flere tar lengre tid")
-    async def generate_last(self, interaction: discord.Interaction, amount: app_commands.Range[int, 100, 2000] = 1000):
+    @app_commands.describe(amount="Hvor mange av de siste meldingene i hver kanal som skal leses. Flere tar lengre tid")
+    async def generate_last(self, interaction: discord.Interaction, amount: app_commands.Range[int, 50, 2000] = 1000):
         """
         Generer en ordsky basert på dine mest frekvente sagte ord fra de siste meldingene dine
 
         Parameters
         ----------
         interaction (discord.Interaction): Slash command context object
+        amount (int): How many of the most recent messages in each channel to read
         """
 
         await interaction.response.defer()
 
-        # Get member role for future channel permission checking
-        board_member_role = interaction.guild.get_role(self.bot.role_ids.get("board_member"))
-
-        # This is horrible but there's a lot of edge cases to handle so spare me pls
-        all_messages = ""
-        for channel in interaction.guild.text_channels:
-            if not channel.permissions_for(interaction.user).send_messages:
-                continue
-
-            # Avoid reading secret board member chats
-            if (
-                board_member_role  # None if invoked outside of UiO Gaming's server. Avoiding crash due to AND check
-                and not channel.permissions_for(board_member_role).send_messages
-                and not channel.permissions_for(interaction.guild.default_role).send_messages
-            ):
-                continue
-
-            try:
-                # Limit search to half of requested messages to avoid rate limits
-                # We assume we can still fetch enough tokens to reach the requested amount
-                async for message in channel.history(limit=int(amount / 2)):
-                    if message.author.id != interaction.user.id or not self.can_count_message(message):
-                        continue
-
-                    filtered_msg = " ".join(self.tokenize(message.clean_content))
-                    all_messages += f"{filtered_msg} "
-            except discord.errors.Forbidden:
-                continue
+        channels = self.readable_channels(interaction.guild, interaction.user)
+        channel_tokens = await asyncio.gather(
+            *(self.fetch_recent_tokens(channel, interaction.user, amount) for channel in channels)
+        )
+        all_messages = " ".join(token for tokens in channel_tokens for token in tokens)
 
         if not all_messages:
             return await interaction.followup.send(
@@ -527,10 +576,7 @@ class WordCloud(commands.Cog):
 
         word_cloud_file = discord.File(word_cloud, filename=f"wordcloud_{interaction.user.id}.png")
         embed = discord.Embed(title="☁️ Her er ordskyen din! ☁️")
-        embed.description = (
-            f"Basert på de {int(amount/2)} siste meldingene i alle kanaler og "
-            + f"topp {amount} mest frekvente ord i dine meldinger"
-        )
+        embed.description = f"Basert på de {len(all_messages.split())} mest brukte ordene dine blant de {amount} siste meldingene i {len(channels)} kanaler"
         embed.set_image(url=f"attachment://wordcloud_{interaction.user.id}.png")
         await interaction.followup.send(embed=embed, file=word_cloud_file)
 
