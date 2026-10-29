@@ -66,6 +66,30 @@ def log_errors(func):
     return wrapper
 
 
+class RateLimiter:
+    """Spaces out calls so that at most a given number happen per second"""
+
+    def __init__(self, per_second: float):
+        """
+        Parameters
+        ----------
+        per_second (float): The maximum number of calls per second
+        """
+
+        self.interval = 1 / per_second
+        self.next_slot = 0.0
+
+    async def wait(self):
+        """
+        Wait until the next free slot. Call this before every rate limited call
+        """
+
+        now = asyncio.get_running_loop().time()
+        slot = max(now, self.next_slot)
+        self.next_slot = slot + self.interval
+        await asyncio.sleep(slot - now)
+
+
 class Paginator:
     """Interface for managing content. Divides your content into pages of 10 items each"""
 
