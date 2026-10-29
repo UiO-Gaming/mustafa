@@ -1,4 +1,5 @@
 import asyncio
+import itertools
 import random
 import re
 from datetime import datetime
@@ -200,7 +201,7 @@ class Misc(commands.Cog):
     @app_commands.describe(text="Teksten som skal mockes", user="Brukeren som skal mockes")
     async def mock(
         self,
-        interation: discord.Interaction,
+        interaction: discord.Interaction,
         text: app_commands.Range[str, 1, 4096],
         user: discord.User | None = None,
     ):
@@ -210,28 +211,22 @@ class Misc(commands.Cog):
         Parameters
         ----------
         interaction (discord.Interaction): Slash command context object
-        text (str): Text to clapify
+        text (str): Text to mock
+        user (discord.User | None): User to mention in the reply
         """
 
-        # TODO: make this not horrible. I can't be botherd to right now
-        words = text.split(" ")
-        for i, word in enumerate(words):
-            karakter = 0
-            word = list(word)
-            for j, char in enumerate(word):
-                if char.isalpha():
-                    if karakter % 2 == 0:
-                        word[j] = char.lower()
-                    else:
-                        word[j] = char.upper()
-                    karakter += 1
-            words[i] = "".join(word)
+        def mock_word(word: re.Match) -> str:
+            letters = itertools.count()
+            return "".join(
+                (char.upper() if next(letters) % 2 else char.lower()) if char.isalpha() else char
+                for char in word.group()
+            )
 
-        text = " ".join(words)
+        text = re.sub(r"\S+", mock_word, text)
         mention = user.mention if user else ""
 
-        embed = discord.Embed(color=interation.client.user.color, description=text)
-        await interation.response.send_message(content=mention, embed=embed)
+        embed = discord.Embed(color=interaction.client.user.color, description=text)
+        await interaction.response.send_message(content=mention, embed=embed)
 
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
