@@ -399,18 +399,20 @@ class Birthday(commands.Cog):
         if not next_birthdays:
             return await interaction.followup.send(embed=embed_templates.error_warning("Ingen bursdager"))
 
+        # The members intent keeps every member cached, so names can be looked up without an API request each.
+        # The cache is filled when the bot starts, so make sure it's done if the command is used right after
+        if not interaction.guild.chunked:
+            await interaction.guild.chunk()
+
         birthday_strings = []
-        for user in next_birthdays:
-            user_id, _, next_birthday = user
-            try:
-                discord_user = await interaction.guild.fetch_member(user_id)
-            except (discord.NotFound, discord.HTTPException):
-                continue
+        for user_id, _, next_birthday in next_birthdays:
+            if not (member := interaction.guild.get_member(user_id)):
+                continue  # The user has left the server
 
             next_birthday = misc_utils.localize(next_birthday, self.bot.timezone)
             timestamp = discord.utils.format_dt(next_birthday, style="D")
             relative_timestamp = discord.utils.format_dt(next_birthday, style="R")
-            birthday_strings.append(f"* {discord_user.name} - {timestamp} ({relative_timestamp})")
+            birthday_strings.append(f"* {member.name} - {timestamp} ({relative_timestamp})")
 
         if not birthday_strings:
             return await interaction.followup.send(embed=embed_templates.error_warning("Ingen bursdager"))
