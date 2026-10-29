@@ -1,7 +1,9 @@
 import asyncio
 import datetime
 import functools
+import subprocess
 import textwrap
+from dataclasses import dataclass
 from math import ceil
 
 import aiohttp
@@ -31,6 +33,45 @@ def localize(dt: datetime.datetime, tz: datetime.tzinfo | None) -> datetime.date
     """
 
     return dt.replace(tzinfo=tz) if tz else dt.astimezone()
+
+
+@dataclass
+class GitVersion:
+    """The branch and commit the code is checked out at"""
+
+    branch: str
+    commit: str
+    subject: str
+    committed: datetime.datetime
+    dirty: bool
+
+
+def git_version() -> GitVersion | None:
+    """
+    Get the branch and latest commit of the git repository the bot runs from
+
+    Returns
+    ----------
+    (GitVersion | None): The branch and commit. None if git or the repository isn't available
+    """
+
+    def git(*args: str) -> str:
+        return subprocess.run(["git", *args], capture_output=True, text=True, check=True).stdout.strip()
+
+    try:
+        branch = git("rev-parse", "--abbrev-ref", "HEAD")
+        commit, timestamp, subject = git("log", "-1", "--format=%H%n%ct%n%s").split("\n", 2)
+        dirty = bool(git("status", "--porcelain", "--untracked-files=no"))
+    except (OSError, subprocess.CalledProcessError, ValueError):
+        return None
+
+    return GitVersion(
+        branch=branch,
+        commit=commit,
+        subject=subject,
+        committed=datetime.datetime.fromtimestamp(int(timestamp), datetime.UTC),
+        dirty=dirty,
+    )
 
 
 # The exceptions discord.py's tasks.loop retries instead of stopping on

@@ -106,6 +106,9 @@ class Bot(commands.Bot):
             midnight_tz = datetime.UTC
         misc_utils.MIDNIGHT = datetime.time(tzinfo=midnight_tz)
 
+        # Read once, so it shows the code that's running even if the repository is updated without a restart
+        self.version = misc_utils.git_version()
+
     async def setup_hook(self):
         """
         Open the HTTP session and database pool, load the cogs and sync the slash commands

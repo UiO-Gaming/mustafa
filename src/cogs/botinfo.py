@@ -8,6 +8,9 @@ from discord import app_commands
 from discord.ext import commands
 from psutil import Process
 
+from cogs.utils import embed_templates
+from cogs.utils import misc_utils
+
 
 class BotInfo(commands.Cog):
     """View information about the bot"""
@@ -83,6 +86,8 @@ class BotInfo(commands.Cog):
         embed.add_field(name="Kernel", value=f"{platform.system()} {platform.release()}")
         if exists("/.dockerenv"):
             embed.add_field(name="Docker", value="✔️")
+        if version := self.bot.version:
+            embed.add_field(name="Versjon", value=f"`{version.branch}`\n{self.commit_link(version)}")
         embed.add_field(
             name=f"Brukere ({len(total_members)})",
             value=f'{self.bot.emoji["online"]}{len(online_members)}\n'
@@ -127,6 +132,49 @@ class BotInfo(commands.Cog):
         embed = discord.Embed(color=interaction.client.user.color)
         embed.add_field(name="📶 Ping", value=f"* **Websocket ping:** {self.get_ping()} ms\n* **I hodet:** ∞")
         await interaction.response.send_message(embed=embed, content=None)
+
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.checks.cooldown(1, 2)
+    @app_commands.command(name="versjon", description="Se hvilken branch og commit botten kjører")
+    async def version(self, interaction: discord.Interaction):
+        """
+        View the branch and commit the bot is running
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): The slash command interaction
+        """
+
+        if not (version := self.bot.version):
+            embed = embed_templates.error_warning("Fant ikke versjonen. Botten kjører kanskje ikke fra et git-repo")
+            return await interaction.response.send_message(embed=embed)
+
+        embed = discord.Embed(color=interaction.client.user.color, title="Versjon")
+        embed.add_field(name="Branch", value=f"`{version.branch}`")
+        embed.add_field(name="Commit", value=self.commit_link(version))
+        embed.add_field(name="Dato", value=discord.utils.format_dt(version.committed, style="f"))
+        embed.add_field(name="Melding", value=discord.utils.escape_markdown(version.subject), inline=False)
+        if version.dirty:
+            embed.set_footer(text="Kjører med endringer som ikke er committet")
+        await interaction.response.send_message(embed=embed)
+
+    def commit_link(self, version: misc_utils.GitVersion) -> str:
+        """
+        Format the commit as a link to it in the source code repository
+
+        Parameters
+        ----------
+        version (misc_utils.GitVersion): The version the bot runs
+
+        Returns
+        ----------
+        (str): The short commit hash, linked if the source code url is configured
+        """
+
+        short = f"`{version.commit[:7]}`"
+        if source_code := self.bot.misc.get("source_code"):
+            return f"[{short}]({source_code}/commit/{version.commit})"
+        return short
 
     def get_ping(self) -> int:
         """
