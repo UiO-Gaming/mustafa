@@ -199,35 +199,37 @@ class SocialCredit(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 2)
     @social_credit_group.command(name="credits", description="Sjekk hvor dårlig menneske du er")
-    async def credits(self, interaction: discord.Interaction, *, bruker: discord.Member | None = None):
+    @app_commands.rename(user="bruker")
+    @app_commands.describe(user="Brukeren du vil se poengsummen til. Standard er deg selv")
+    async def credits(self, interaction: discord.Interaction, *, user: discord.Member | None = None):
         """
         Check the social credit score of a given user
 
         Parameters
         ----------
         interaction (discord.Interaction): The interaction object
-        bruker (discord.Member | None): The user to check the score of. Defaults to the user who invoked the command
+        user (discord.Member | None): The user to check the score of. Defaults to the user who invoked the command
         """
 
-        if not bruker:
-            bruker = interaction.user
+        if not user:
+            user = interaction.user
 
         result = await self.bot.db.fetchone(
             """
             SELECT * FROM social_credit
             WHERE user_id = %s
             """,
-            (bruker.id,),
+            (user.id,),
         )
 
         if not result:
             return await interaction.response.send_message(
-                embed=embed_templates.error_warning(f"{bruker.mention} er ikke registrert i databasen")
+                embed=embed_templates.error_warning(f"{user.mention} er ikke registrert i databasen")
             )
 
         db_user = CreditUser(*result)
 
-        embed = discord.Embed(description=(f"{bruker.mention} har `{db_user.credit_score}` social credits"))
+        embed = discord.Embed(description=(f"{user.mention} har `{db_user.credit_score}` social credits"))
         await interaction.response.send_message(embed=embed)
 
     @app_commands.checks.bot_has_permissions(embed_links=True)

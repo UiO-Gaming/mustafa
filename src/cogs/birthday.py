@@ -256,12 +256,14 @@ class Birthday(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @birthday_group.command(name="sett", description="Lagrer din bursdag i databasen")
+    @app_commands.rename(day="dag", month="måned", year="år")
+    @app_commands.describe(day="Dagen i måneden", month="Måneden", year="Året du ble født")
     async def birthday_set(
         self,
         interaction: discord.Interaction,
-        dag: app_commands.Range[int, 1, 31],
-        måned: app_commands.Range[int, 1, 12],
-        år: int,
+        day: app_commands.Range[int, 1, 31],
+        month: app_commands.Range[int, 1, 12],
+        year: int,
     ):
         """
         Allows the user to set their birthday in the database.
@@ -269,13 +271,13 @@ class Birthday(commands.Cog):
         Parameters
         ----------
         interaction (discord.Interaction): Slash command context object
-        dag (int): Day of the month
-        måned (int): Month of the year
-        år (int): Year
+        day (int): Day of the month
+        month (int): Month of the year
+        year (int): Year
         """
 
         try:
-            date = datetime(år, måned, dag)
+            date = datetime(year, month, day)
         except ValueError:
             return await interaction.response.send_message(
                 embed=embed_templates.error_warning("ikke en gyldig dato, gjøk!"), ephemeral=True
@@ -319,44 +321,44 @@ class Birthday(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @birthday_group.command(name="se", description="Viser bursdagen til en bruker. Om ingen er gitt, vises din egen")
-    async def birthday_show(
-        self, interaction: discord.Interaction, bruker: discord.Member | discord.User | None = None
-    ):
+    @app_commands.rename(user="bruker")
+    @app_commands.describe(user="Brukeren du vil se bursdagen til. Standard er deg selv")
+    async def birthday_show(self, interaction: discord.Interaction, user: discord.Member | discord.User | None = None):
         """
         Shows the birthday of a user. If none is given, shows the invoking user's one.
 
         Parameters
         ----------
         interaction (discord.Interaction): Slash command context object
-        bruker (discord.Member | discord.User | None): The user to show the birthday of. Defaults to None.
+        user (discord.Member | discord.User | None): The user to show the birthday of. Defaults to None.
         """
 
-        if not bruker:
-            bruker = interaction.user
-
-        user = await self.fetch_user_birthday(bruker.id)
-
         if not user:
+            user = interaction.user
+
+        user_birthday = await self.fetch_user_birthday(user.id)
+
+        if not user_birthday:
             return await interaction.response.send_message(
                 embed=embed_templates.error_warning("Brukeren har ikke registrert bursdagen sin")
             )
 
         # Current age information
         today = self.local_today()
-        birthday = datetime(user.year, user.month, user.day)
+        birthday = datetime(user_birthday.year, user_birthday.month, user_birthday.day)
         days_old = (today - birthday).days
         years_old = relativedelta(today, birthday).years
 
         #  Next birthday information
-        next_birthday = await self.fetch_user_next_birthday(bruker.id)
+        next_birthday = await self.fetch_user_next_birthday(user.id)
         next_birthday_days = (next_birthday - today).days
 
         # Japanese era
         japanese_era = EraDate.from_date(birthday).strftime("%-K%-y年")
 
-        embed = discord.Embed(description=bruker.mention, color=bruker.color)
-        embed.set_thumbnail(url=bruker.display_avatar)
-        embed.set_author(name=bruker.name, icon_url=bruker.display_avatar)
+        embed = discord.Embed(description=user.mention, color=user.color)
+        embed.set_thumbnail(url=user.display_avatar)
+        embed.set_author(name=user.name, icon_url=user.display_avatar)
         embed.add_field(
             name="Bursdag", value=discord.utils.format_dt(misc_utils.localize(birthday, self.bot.timezone), style="D")
         )

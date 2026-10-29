@@ -38,20 +38,22 @@ class Meme(commands.Cog):
     @app_commands.checks.bot_has_permissions(attach_files=True)
     @app_commands.checks.cooldown(1, 5)
     @app_commands.command(name="deepfry", description="Friter et bilde til hundre og helvete")
-    async def deepfry(self, interaction: discord.Interaction, bilde: discord.Attachment):
+    @app_commands.rename(attachment="bilde")
+    @app_commands.describe(attachment="Bildet som skal frityrstekes")
+    async def deepfry(self, interaction: discord.Interaction, attachment: discord.Attachment):
         """
         Deepfries an image
 
         Parameters
         ----------
         interaction (discord.Interaction): The interaction
-        bilde (discord.Attachment): The image to deepfry
+        attachment (discord.Attachment): The image to deepfry
         """
 
         await interaction.response.defer()
 
         # Fetch image
-        input_image = await discord_utils.get_file_bytesio(bilde)
+        input_image = await discord_utils.get_file_bytesio(attachment)
 
         try:
             image = Image.open(input_image)
@@ -99,20 +101,22 @@ class Meme(commands.Cog):
     @app_commands.checks.bot_has_permissions(attach_files=True)
     @app_commands.checks.cooldown(1, 5)
     @app_commands.command(name="preferansemem", description="Generer en drake-aktig mem basert på tekst")
-    async def prefer_meme(self, interaction: discord.Interaction, dårlig_tekst: str, bra_tekst: str):
+    @app_commands.rename(bad_text="dårlig_tekst", good_text="bra_tekst")
+    @app_commands.describe(bad_text="Teksten øverst, det som er dårlig", good_text="Teksten nederst, det som er bra")
+    async def prefer_meme(self, interaction: discord.Interaction, bad_text: str, good_text: str):
         """
         Generates a drake-like meme based on text
 
         Parameters
         ----------
         interaction (discord.Interaction): The interaction
-        dårlig_tekst (str): The upper text, what's disliked
-        bra_tekst (str): The lower text, what's liked
+        bad_text (str): The upper text, what's disliked
+        good_text (str): The lower text, what's liked
         """
 
         await interaction.response.defer()
 
-        output = await asyncio.to_thread(Meme.make_prefer_meme, dårlig_tekst, bra_tekst)
+        output = await asyncio.to_thread(Meme.make_prefer_meme, bad_text, good_text)
 
         # Send image
         await interaction.followup.send(file=discord.File(output, "sivert_goodbad.jpg"))
@@ -151,23 +155,25 @@ class Meme(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True, attach_files=True)
     @app_commands.checks.cooldown(1, 5)
     @app_commands.command(name="wojakpoint", description="Få UiO Gaming-medlemmer til å peke på et bilde")
-    async def wojakpoint(self, interaction: discord.Interaction, file: discord.Attachment):
+    @app_commands.rename(attachment="bilde")
+    @app_commands.describe(attachment="Bildet som det skal pekes på. Kun PNG og JPG")
+    async def wojakpoint(self, interaction: discord.Interaction, attachment: discord.Attachment):
         """
         Make glorious UiO Gaming members point at your desired picture
 
         Parameters
         ----------
         interaction (discord.Interaction): Slash command context object
-        file (discord.Attachment): The image to point at. Only supports png and jpg for now
+        attachment (discord.Attachment): The image to point at. Only supports png and jpg for now
         """
 
         await interaction.response.defer()
 
-        if file.content_type not in ["image/png", "image/jpeg"]:
+        if attachment.content_type not in ["image/png", "image/jpeg"]:
             embed = embed_templates.error_warning("Bildet må være i PNG- eller JPEG-format")
             return await interaction.followup.send(embed=embed)
 
-        provided_image = await discord_utils.get_file_bytesio(file)
+        provided_image = await discord_utils.get_file_bytesio(attachment)
         output = await asyncio.to_thread(Meme.make_wojakpoint, provided_image)
 
         # Send
@@ -213,20 +219,22 @@ class Meme(commands.Cog):
     @app_commands.checks.bot_has_permissions(attach_files=True)
     @app_commands.checks.cooldown(1, 30)
     @app_commands.command(name="nightcore", description="nightcore en gitt lyd")
-    async def nightcore(self, interaction: discord.Interaction, søk: str = None, url: str = None):
+    @app_commands.rename(query="søk")
+    @app_commands.describe(query="Søkeord for å finne lyden på YouTube", url="Lenke til lyden")
+    async def nightcore(self, interaction: discord.Interaction, query: str = None, url: str = None):
         """
         Turn the user passed url or searched media into nightcore
 
         Parameters
         ----------
         interaction (discord.Interaction): The interaction
-        søk (str|None): Search term to look up the media on YouTube
+        query (str|None): Search term to look up the media on YouTube
         url (str|None): Link to the source media
         """
 
         await interaction.response.defer()
 
-        if not url and not søk:
+        if not url and not query:
             return await interaction.followup.send(
                 embed=embed_templates.error_warning("Du må enten gi meg en link eller noe å søke etter"),
                 ephemeral=True,
@@ -261,7 +269,7 @@ class Meme(commands.Cog):
             "no_warnings": True,
         }
         prefix = "ytsearch1:" if not url else ""
-        search_term = søk if not url else url
+        search_term = query if not url else url
 
         def download():
             with yt_dlp.YoutubeDL(options) as ydl:
@@ -325,20 +333,22 @@ class Meme(commands.Cog):
     @app_commands.checks.bot_has_permissions(attach_files=True)
     @app_commands.checks.cooldown(1, 60)
     @app_commands.command(name="crabrave", description="Generer en crab rave video basert på tekst")
-    async def crab_rave(self, interaction: discord.Interaction, topptekst: str, bunntekst: str):
+    @app_commands.rename(top_text="topptekst", bottom_text="bunntekst")
+    @app_commands.describe(top_text="Teksten øverst", bottom_text="Teksten nederst")
+    async def crab_rave(self, interaction: discord.Interaction, top_text: str, bottom_text: str):
         """
         Generates a crab rave video based on text
 
         Parameters
         ----------
         interaction (discord.Interaction): The interaction
-        topptekst (str): The upper text
-        bunntekst (str): The lower text
+        top_text (str): The upper text
+        bottom_text (str): The lower text
         """
 
         await interaction.response.defer()
 
-        generation_task = functools.partial(Meme.make_crab, topptekst, bunntekst, interaction.user.id)
+        generation_task = functools.partial(Meme.make_crab, top_text, bottom_text, interaction.user.id)
         await self.bot.loop.run_in_executor(None, generation_task)
 
         temp_file = f"./src/assets/temp/{interaction.user.id}_crab.mp4"

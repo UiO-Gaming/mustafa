@@ -225,20 +225,22 @@ class Streak(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 2)
     @streak_group.command(name="se", description="Se din eller en annen brukers streak")
-    async def streak_user(self, interaction: discord.Interaction, bruker: discord.Member | discord.User | None = None):
+    @app_commands.rename(user="bruker")
+    @app_commands.describe(user="Brukeren du vil se streaken til. Standard er deg selv")
+    async def streak_user(self, interaction: discord.Interaction, user: discord.Member | discord.User | None = None):
         """
         Get the current streak for a user
 
         Parameters
         ----------
         interaction (discord.Interaction): The interaction
-        bruker (discord.Member | discord.User | None): The user to get the streak for
+        user (discord.Member | discord.User | None): The user to get the streak for
         """
 
         await interaction.response.defer()
 
-        if not bruker:
-            bruker = interaction.user
+        if not user:
+            user = interaction.user
 
         streak = await self.bot.db.fetchone(
             """
@@ -246,7 +248,7 @@ class Streak(commands.Cog):
             FROM streak
             WHERE discord_id = %s;
             """,
-            (bruker.id,),
+            (user.id,),
         )
 
         if not streak:
@@ -270,8 +272,8 @@ class Streak(commands.Cog):
         streak_days = (discord.utils.utcnow() - streak_msg_time).days
         streak_msg_timestamp = discord.utils.format_dt(streak_msg_time, "F")
 
-        embed = discord.Embed(title="Streak", description=bruker.mention)
-        embed.set_author(name=bruker.name, icon_url=bruker.avatar)
+        embed = discord.Embed(title="Streak", description=user.mention)
+        embed.set_author(name=user.name, icon_url=user.avatar)
         embed.add_field(name="Antall dager", value=streak_days)
         embed.add_field(name="Startet streaken", value=f"{streak_msg_timestamp}\n{streak_msg_link}")
         await interaction.followup.send(embed=embed)

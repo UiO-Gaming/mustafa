@@ -46,83 +46,89 @@ class Misc(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 2)
     @app_commands.command(name="owo", description="Oversetter teksten din til owo (we_eb)")
-    async def owo(self, interaction: discord.Interaction, tekst: str):
+    @app_commands.rename(text="tekst")
+    @app_commands.describe(text="Teksten som skal oversettes")
+    async def owo(self, interaction: discord.Interaction, text: str):
         """
         Translate text into owo (we_eb)
 
         Parameters
         ----------
         interaction (discord.Interaction): Slash command context object
-        tekst (str): Text to translate
+        text (str): Text to translate
         """
 
         # Decades of computer sciencetist optimizng every little detail to make
         # our computers as fast as possible. Only for me to ruin it by doing this shit.
         # I am sorry to our forefathers whose shoulders we stand upon.
         # I have sinned
-        tekst = re.sub(r"[rl]", "w", tekst)
-        tekst = re.sub(r"[RL]", "W", tekst)
-        tekst = re.sub(r"n([aeiou])", r"ny\1", tekst, flags=re.IGNORECASE)
-        tekst = re.sub(r"N([aeiou])", r"Ny\1", tekst)
-        tekst = re.sub(r"th", "d", tekst, flags=re.IGNORECASE)
-        tekst = tekst.replace("ove", "uv")
+        text = re.sub(r"[rl]", "w", text)
+        text = re.sub(r"[RL]", "W", text)
+        text = re.sub(r"n([aeiou])", r"ny\1", text, flags=re.IGNORECASE)
+        text = re.sub(r"N([aeiou])", r"Ny\1", text)
+        text = re.sub(r"th", "d", text, flags=re.IGNORECASE)
+        text = text.replace("ove", "uv")
 
         # TODO: add kaomoji? https://kaomoji.moe/
 
-        if len(tekst) >= 1000:
+        if len(text) >= 1000:
             embed = embed_templates.error_warning("Teksten er for lang")
             return await interaction.response.send_message(embed=embed)
 
-        embed = discord.Embed(description=tekst)
+        embed = discord.Embed(description=text)
         await interaction.response.send_message(embed=embed)
 
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 2)
     @app_commands.command(name="dicksize", description="Se hvor liten pikk du har")
-    async def dicksize(self, interaction: discord.Interaction, bruker: discord.Member | discord.User | None = None):
+    @app_commands.rename(user="bruker")
+    @app_commands.describe(user="Brukeren du vil måle. Standard er deg selv")
+    async def dicksize(self, interaction: discord.Interaction, user: discord.Member | discord.User | None = None):
         """
         Get a totally accurate meassurement of a user's dick
 
         Parameters
         ----------
         interaction (discord.Interaction): Slash command context object
-        bruker (discord.Member | discord.User | None): The user you want to see the dicksize of. Defaults to author
+        user (discord.Member | discord.User | None): The user you want to see the dicksize of. Defaults to author
         """
 
-        if not bruker:
-            bruker = interaction.user
+        if not user:
+            user = interaction.user
 
         # Må jo gi meg selv en stor kuk
-        if bruker.id == self.bot.user_ids.get("dev"):
+        if user.id == self.bot.user_ids.get("dev"):
             dick_size = 69
-        elif bruker.id == 327207142681608192:
+        elif user.id == 327207142681608192:
             dick_size = 1
         else:
-            dick_hash = md5(str(bruker.id).encode("utf-8")).hexdigest()
+            dick_hash = md5(str(user.id).encode("utf-8")).hexdigest()
             dick_size = (
                 int(dick_hash[11:13], 16) * (25 - 2) // 255 + 2
             )  # This is 5 year old code. I have no fucking idea what's going on
 
         dick_drawing = "=" * dick_size
 
-        embed = discord.Embed(color=bruker.color)
-        embed.set_author(name=bruker.global_name, icon_url=bruker.avatar)
+        embed = discord.Embed(color=user.color)
+        embed.set_author(name=user.global_name, icon_url=user.avatar)
         embed.add_field(name="Kukstørrelse", value=f"{dick_size} cm\n8{dick_drawing}D")
         await interaction.response.send_message(embed=embed)
 
     @app_commands.checks.cooldown(1, 5)
     @app_commands.command(name="emne", description="For NTNU'ere som ikke kan emnekoder på UiO")
-    async def course_code(self, interaction: discord.Interaction, emnekode: str):
+    @app_commands.rename(course_code="emnekode")
+    @app_commands.describe(course_code="Emnekoden på UiO, f.eks. IN1000")
+    async def course_code(self, interaction: discord.Interaction, course_code: str):
         """
         Translate UiO course codes to their respective course names
 
         Parameters
         ----------
         interaction (discord.Interaction): Slash command context object
-        emnekode (str): UiO course code
+        course_code (str): UiO course code
         """
 
-        params = {"action": "autocomplete", "service": "emner", "scope": "/studier/emner", "q": emnekode, "limit": 1}
+        params = {"action": "autocomplete", "service": "emner", "scope": "/studier/emner", "q": course_code, "limit": 1}
         async with self.bot.http_session.get("https://www.uio.no/studier/", params=params) as response:
             if response.status != 200:
                 return await interaction.response.send_message(embed=embed_templates.error_fatal("Kunne ikke nå API"))
@@ -134,7 +140,7 @@ class Misc(commands.Cog):
 
         for result in results:
             code, name, _ = result.split(";")
-            if code.lower() == emnekode.lower():
+            if code.lower() == course_code.lower():
                 break
 
         await interaction.response.send_message(name)
@@ -142,33 +148,37 @@ class Misc(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 2)
     @app_commands.command(name="klappifiser", description="Klappifiser tekst")
-    async def clapify(self, interation: discord.Interaction, tekst: str):
+    @app_commands.rename(text="tekst")
+    @app_commands.describe(text="Teksten som skal klappifiseres")
+    async def clapify(self, interation: discord.Interaction, text: str):
         """
         Add clap emoji between every word of a string
 
         Parameters
         ----------
         interaction (discord.Interaction): Slash command context object
-        tekst (str): Text to clapify
+        text (str): Text to clapify
         """
 
-        if len(tekst) >= 1000:
+        if len(text) >= 1000:
             embed = embed_templates.error_warning("Teksten er for lang")
             return await interation.response.send_message(embed=embed)
 
-        tekst = tekst.replace(" ", "👏")
+        text = text.replace(" ", "👏")
 
-        embed = discord.Embed(color=interation.client.user.color, description=f"**{tekst.upper()}**")
+        embed = discord.Embed(color=interation.client.user.color, description=f"**{text.upper()}**")
         await interation.response.send_message(embed=embed)
 
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 2)
     @app_commands.command(name="mock", description="vEt dU iKkE hVa mOcKtEkSt eR eLlEr?")
+    @app_commands.rename(text="tekst", user="bruker")
+    @app_commands.describe(text="Teksten som skal mockes", user="Brukeren som skal mockes")
     async def mock(
         self,
         interation: discord.Interaction,
-        tekst: app_commands.Range[str, 1, 4096],
-        bruker: discord.User | None = None,
+        text: app_commands.Range[str, 1, 4096],
+        user: discord.User | None = None,
     ):
         """
         dO i rEaLlY nEeD tO eXpLaIn??
@@ -176,11 +186,11 @@ class Misc(commands.Cog):
         Parameters
         ----------
         interaction (discord.Interaction): Slash command context object
-        tekst (str): Text to clapify
+        text (str): Text to clapify
         """
 
         # TODO: make this not horrible. I can't be botherd to right now
-        words = tekst.split(" ")
+        words = text.split(" ")
         for i, word in enumerate(words):
             karakter = 0
             word = list(word)
@@ -194,7 +204,7 @@ class Misc(commands.Cog):
             words[i] = "".join(word)
 
         text = " ".join(words)
-        mention = bruker.mention if bruker else ""
+        mention = user.mention if user else ""
 
         embed = discord.Embed(color=interation.client.user.color, description=text)
         await interation.response.send_message(content=mention, embed=embed)
@@ -202,8 +212,10 @@ class Misc(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @app_commands.command(name="helligdager", description="Se helligdager i et land for et år")
+    @app_commands.rename(country_code="land", year="år")
+    @app_commands.describe(country_code="Landkode med to bokstaver, f.eks. NO", year="Året. Standard er i år")
     async def holidays(
-        self, interaction: discord.Interaction, *, land: app_commands.Range[str, 2, 2] = "NO", år: int = None
+        self, interaction: discord.Interaction, *, country_code: app_commands.Range[str, 2, 2] = "NO", year: int = None
     ):
         """
         Get holidays for a country for a given year
@@ -211,21 +223,23 @@ class Misc(commands.Cog):
         Parameters
         ----------
         interaction (discord.Interaction): Slash command context object
-        land (str): Country code
-        år (int): Year
+        country_code (str): Country code
+        year (int): Year
         """
 
-        land = land.upper()
-        år = discord.utils.utcnow().astimezone(self.bot.timezone).year if not år else int(år)
+        country_code = country_code.upper()
+        year = discord.utils.utcnow().astimezone(self.bot.timezone).year if not year else int(year)
 
-        async with self.bot.http_session.get(f"https://date.nager.at/api/v3/publicholidays/{år}/{land}") as response:
+        async with self.bot.http_session.get(
+            f"https://date.nager.at/api/v3/publicholidays/{year}/{country_code}"
+        ) as response:
             if response.status not in (200, 204):
                 embed = embed_templates.error_warning("Ugyldig land\nHusk å bruke landskoder\n" + "For eksempel: `NO`")
                 return await interaction.response.send_message(embed=embed)
             data = await response.json(content_type=None) if response.status == 200 else []
 
         if not data:
-            embed = embed_templates.error_warning(f"Fant ingen helligdager for `{land}` i {år}")
+            embed = embed_templates.error_warning(f"Fant ingen helligdager for `{country_code}` i {year}")
             return await interaction.response.send_message(embed=embed)
 
         country = data[0]["countryCode"].lower()
@@ -238,7 +252,7 @@ class Misc(commands.Cog):
             holiday_str += f'* **{date}**: {day["localName"]}\n'
 
         embed = discord.Embed(
-            color=interaction.client.user.color, title=f":flag_{country}: Helligdager {år} :flag_{country}:"
+            color=interaction.client.user.color, title=f":flag_{country}: Helligdager {year} :flag_{country}:"
         )
         embed.description = holiday_str
         await interaction.response.send_message(embed=embed)
@@ -246,36 +260,38 @@ class Misc(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True, attach_files=True)
     @app_commands.checks.cooldown(1, 5)
     @app_commands.command(name="match", description="Se hvor mye du matcher med en annen")
-    async def match(self, interaction: discord.Interaction, bruker: discord.Member):
+    @app_commands.rename(user="bruker")
+    @app_commands.describe(user="Brukeren du vil matche med")
+    async def match(self, interaction: discord.Interaction, user: discord.Member):
         """
         Get dating compatibility with another user
 
         Parameters
         ----------
         interaction (discord.Interaction): Slash command context object
-        bruker (discord.Member): User to match with
+        user (discord.Member): User to match with
         """
 
-        if bruker == interaction.user:
+        if user == interaction.user:
             embed = embed_templates.error_warning("Jeg vet du er ensom, men du kan ikke matche med deg selv")
             return await interaction.response.send_message(embed=embed)
 
         invoker_id = int(str(interaction.user.id)[11:14])
-        user_id = int(str(bruker.id)[11:14])
+        user_id = int(str(user.id)[11:14])
 
         match_percent = int((invoker_id + user_id) % 100)
 
-        if bruker.id == self.bot.user.id:
+        if user.id == self.bot.user.id:
             match_percent = 100
 
         invoker_avatar = await discord_utils.get_file_bytesio(interaction.user.display_avatar)
-        user_avatar = await discord_utils.get_file_bytesio(bruker.display_avatar)
+        user_avatar = await discord_utils.get_file_bytesio(user.display_avatar)
         output = await asyncio.to_thread(Misc.make_match_image, invoker_avatar, user_avatar, match_percent)
 
         # Send
-        f = discord.File(output, filename=f"{interaction.user.id}_{bruker.id}_match.png")
+        f = discord.File(output, filename=f"{interaction.user.id}_{user.id}_match.png")
         embed = discord.Embed()
-        embed.set_image(url=f"attachment://{interaction.user.id}_{bruker.id}_match.png")
+        embed.set_image(url=f"attachment://{interaction.user.id}_{user.id}_match.png")
         await interaction.response.send_message(embed=embed, file=f)
 
     @staticmethod
@@ -368,18 +384,20 @@ class Misc(commands.Cog):
 
     @app_commands.checks.cooldown(1, 2)
     @app_commands.command(name="mennesketid", description="Konverter tid i menneskelig format til dato og klokkeslett")
-    async def humantime(self, interaction: discord.Interaction, tekst: str):
+    @app_commands.rename(text="tekst")
+    @app_commands.describe(text="Tidspunkt i menneskelig format, f.eks. «fredag 18:00»")
+    async def humantime(self, interaction: discord.Interaction, text: str):
         """
         Convert human-readable time to date and time
 
         Parameters
         ----------
         interaction (discord.Interaction): Slash command context object
-        tekst (str): Human-readable time string
+        text (str): Human-readable time string
         """
 
         parsed_time = dateparser.parse(
-            tekst,
+            text,
             languages=["nb", "nn", "en"],
             settings={
                 "TIMEZONE": str(self.bot.timezone) if self.bot.timezone else "local",

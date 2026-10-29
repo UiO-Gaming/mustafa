@@ -113,25 +113,27 @@ class Gullkorn(commands.Cog):
     @gullkorn_group.command(
         name="statistikk", description="Se informasjon om gullkorn for en bruker eller hele serveren"
     )
-    async def gullkorn_stats(self, interaction: discord.Interaction, bruker: discord.Member | None = None):
+    @app_commands.rename(user="bruker")
+    @app_commands.describe(user="Brukeren du vil se statistikk for. Standard er deg selv")
+    async def gullkorn_stats(self, interaction: discord.Interaction, user: discord.Member | None = None):
         """
         Fetches gullkorn stats for a user or the whole server
 
         Parameters
         ----------
         interaction (discord.Interaction): Slash command context object
-        bruker (discord.Member, optional): Discord user to fetch stats for. Defaults to None.
+        user (discord.Member, optional): Discord user to fetch stats for. Defaults to None.
         """
 
         # This looks kinda ugly, ngl
-        if bruker:
+        if user:
             result = await self.bot.db.fetchone(
                 """
                 SELECT *
                 FROM gullkorn
                 WHERE discord_id = %s;
                 """,
-                (bruker.id,),
+                (user.id,),
             )
 
             if not result:
@@ -141,10 +143,10 @@ class Gullkorn(commands.Cog):
                 )
 
             embed = discord.Embed(
-                title=f"Gullkornstatistikk for `{bruker.name}`",
-                color=bruker.color,
+                title=f"Gullkornstatistikk for `{user.name}`",
+                color=user.color,
             )
-            embed.set_thumbnail(url=bruker.avatar)
+            embed.set_thumbnail(url=user.avatar)
             embed.add_field(name="Antall gullkorn", value=result[1])
             embed.add_field(name="Antall gullkorn postet", value=result[2])
             return await interaction.response.send_message(embed=embed, ephemeral=False)

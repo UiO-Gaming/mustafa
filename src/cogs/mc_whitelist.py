@@ -44,23 +44,25 @@ class MCWhitelist(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @whitelist_group.command(name="registrer", description="Whitelist minecraftbrukeren din på serveren vår")
-    async def whitelist_add(self, interaction: discord.Interaction, minecraftbrukernavn: str):
+    @app_commands.rename(minecraft_username="minecraftbrukernavn")
+    @app_commands.describe(minecraft_username="Minecraft-brukernavnet ditt")
+    async def whitelist_add(self, interaction: discord.Interaction, minecraft_username: str):
         """
         Whitelist a minecraft user on the Minecraft server
 
         Parameters
         ----------
         interaction (discord.Interaction): Slash command context object
-        minecraftbrukernavn (str): Minecraft username
+        minecraft_username (str): Minecraft username
         """
 
         # Fetch minecraft uuid from api
         async with self.bot.http_session.get(
-            f"https://api.mojang.com/users/profiles/minecraft/{minecraftbrukernavn}"
+            f"https://api.mojang.com/users/profiles/minecraft/{minecraft_username}"
         ) as response:
             if response.status != 200:
                 return await interaction.response.send_message(
-                    embed=embed_templates.error_warning(f"Brukeren `{minecraftbrukernavn}` finnes ikke på minecraft"),
+                    embed=embed_templates.error_warning(f"Brukeren `{minecraft_username}` finnes ikke på minecraft"),
                     ephemeral=True,
                 )
             data = await response.json(content_type=None)

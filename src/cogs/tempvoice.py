@@ -37,6 +37,8 @@ class TempVoice(commands.Cog):
     @app_commands.checks.bot_has_permissions(manage_channels=True, embed_links=True)
     @app_commands.checks.cooldown(1, 300)
     @app_commands.command(name="tempvoice")
+    @app_commands.rename(name="navn", limit="grense")
+    @app_commands.describe(name="Navnet på kanalen", limit="Maks antall brukere. 0 betyr ingen grense")
     async def tempvoice(
         self,
         interaction: discord.Interaction,

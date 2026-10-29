@@ -108,14 +108,16 @@ class Viteboka(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True, attach_files=True)
     @app_commands.checks.cooldown(1, 10)
     @viteboka_group.command(name="søk", description="Søk etter en artikkel i Viteboka")
-    async def search(self, interaction: discord.Interaction, søkestreng: str):
+    @app_commands.rename(query="søkestreng")
+    @app_commands.describe(query="Det du vil søke etter")
+    async def search(self, interaction: discord.Interaction, query: str):
         """
         Search for an article in Viteboka
 
         Parameters
         ----------
         interaction (discord.Interaction): Slash command context object
-        søkestreng (str): The search query
+        query (str): The search query
         """
 
         await interaction.response.defer()
@@ -124,18 +126,18 @@ class Viteboka(commands.Cog):
             "action": "query",
             "format": "json",
             "list": "search",
-            "srsearch": søkestreng,
+            "srsearch": query,
         }
         async with self.bot.http_session.get(API_URL, params=params) as response:
             if response.status != 200:
-                self.bot.logger.error(f"Failed to search for articles with query {søkestreng}: {response.status}")
+                self.bot.logger.error(f"Failed to search for articles with query {query}: {response.status}")
                 embed = embed_templates.error_fatal("Klarte ikke å søke etter artikler")
                 return await interaction.followup.send(embed=embed)
             data = await response.json(content_type=None)
         search_results = data["query"]["search"]
 
         if not search_results:
-            self.bot.logger.info(f"No articles found with query {søkestreng}")
+            self.bot.logger.info(f"No articles found with query {query}")
             embed = embed_templates.error_warning("Fant ingen artikler som matcher søket")
             return await interaction.followup.send(embed=embed)
 

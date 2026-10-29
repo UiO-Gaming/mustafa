@@ -482,7 +482,9 @@ class WordCloud(commands.Cog):
         name="siste",
         description="Generer en ordsky basert på dine mest frekvente sagte ord fra de siste meldingene dine",
     )
-    async def generate_last(self, interaction: discord.Interaction, antall: app_commands.Range[int, 100, 2000] = 1000):
+    @app_commands.rename(amount="antall")
+    @app_commands.describe(amount="Hvor mange meldinger som skal søkes gjennom. Flere tar lengre tid")
+    async def generate_last(self, interaction: discord.Interaction, amount: app_commands.Range[int, 100, 2000] = 1000):
         """
         Generer en ordsky basert på dine mest frekvente sagte ord fra de siste meldingene dine
 
@@ -513,7 +515,7 @@ class WordCloud(commands.Cog):
             try:
                 # Limit search to half of requested messages to avoid rate limits
                 # We assume we can still fetch enough tokens to reach the requested amount
-                async for message in channel.history(limit=int(antall / 2)):
+                async for message in channel.history(limit=int(amount / 2)):
                     if message.author.id != interaction.user.id or not self.can_count_message(message):
                         continue
 
@@ -536,8 +538,8 @@ class WordCloud(commands.Cog):
         word_cloud_file = discord.File(word_cloud, filename=f"wordcloud_{interaction.user.id}.png")
         embed = discord.Embed(title="☁️ Her er ordskyen din! ☁️")
         embed.description = (
-            f"Basert på de {int(antall/2)} siste meldingene i alle kanaler og "
-            + f"topp {antall} mest frekvente ord i dine meldinger"
+            f"Basert på de {int(amount/2)} siste meldingene i alle kanaler og "
+            + f"topp {amount} mest frekvente ord i dine meldinger"
         )
         embed.set_image(url=f"attachment://wordcloud_{interaction.user.id}.png")
         await interaction.followup.send(embed=embed, file=word_cloud_file)

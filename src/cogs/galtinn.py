@@ -50,8 +50,15 @@ class Galtinn(commands.Cog):
 
     @app_commands.checks.cooldown(1, 5)
     @galtinn_group.command(name="medlemskap", description="Sjekk medlemskap i Det Norske Studentersamfund")
+    @app_commands.rename(galtinn_username="brukernavn", discord_user="discordbruker")
+    @app_commands.describe(
+        galtinn_username="Galtinn-brukernavnet", discord_user="Discordbrukeren som er koblet til Galtinn"
+    )
     async def medlemskap(
-        self, interaction: discord.Interaction, brukernavn: str | None = None, discordbruker: discord.User | None = None
+        self,
+        interaction: discord.Interaction,
+        galtinn_username: str | None = None,
+        discord_user: discord.User | None = None,
     ):
         """
         Check someone's membership status in the norwegian student society
@@ -61,12 +68,12 @@ class Galtinn(commands.Cog):
         interaction (discord.Interaction): Slash command context object
         """
 
-        if discordbruker and brukernavn:
+        if discord_user and galtinn_username:
             embed = embed_templates.error_fatal("Du kan ikke oppgi både brukernavn og discordbruker")
             return await interaction.response.send_message(embed=embed, ephemeral=True)
 
-        if not brukernavn and not discordbruker:
-            discordbruker = interaction.user
+        if not galtinn_username and not discord_user:
+            discord_user = interaction.user
 
         # Check if the user has registered their Discord account in Galtinn.
         # We do this because we don't want just anyone fetching data
@@ -86,17 +93,19 @@ class Galtinn(commands.Cog):
 
         # Only make new request if given user is different from command invoker
         # This is done in order to avoid redundant requests
-        if (discordbruker and discordbruker.id != data["results"][0]["discord_profile"]["discord_id"]) or brukernavn:
+        if (
+            discord_user and discord_user.id != data["results"][0]["discord_profile"]["discord_id"]
+        ) or galtinn_username:
             params = {
-                "discord_profile__discord_id": discordbruker.id if discordbruker else None,
-                "username": brukernavn,
+                "discord_profile__discord_id": discord_user.id if discord_user else None,
+                "username": galtinn_username,
             }
             if not (data := await self.request_users(params)):
                 embed = embed_templates.error_fatal("Noe gikk galt under henting av data fra Galtinn")
                 return await interaction.response.send_message(embed=embed, ephemeral=True)
 
             if not data["results"]:
-                if discordbruker:
+                if discord_user:
                     embed = embed_templates.error_warning(
                         "Brukeren du forespurte har ikke koblet Discordbrukeren sin til Galtinn"
                     )

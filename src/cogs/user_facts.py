@@ -62,25 +62,27 @@ class UserFacts(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 2)
     @height_group.command(name="se", description="Se høyden til en bruker")
-    async def height_see(self, interaction: discord.Interaction, bruker: discord.Member = None):
+    @app_commands.rename(user="bruker")
+    @app_commands.describe(user="Brukeren du vil se høyden til")
+    async def height_see(self, interaction: discord.Interaction, user: discord.Member = None):
         """
         See the height of a user
 
         Parameters
         ----------
         interaction (discord.Interaction): The interaction object
-        bruker (discord.Member): The user to see the height of
+        user (discord.Member): The user to see the height of
         """
 
-        if not bruker:
-            bruker = interaction.user
+        if not user:
+            user = interaction.user
 
         height = await self.bot.db.fetchone(
             """
             SELECT height FROM user_facts
             WHERE discord_id = %s and height IS NOT NULL;
             """,
-            (bruker.id,),
+            (user.id,),
         )
 
         if not height:
@@ -94,10 +96,10 @@ class UserFacts(commands.Cog):
         feet = int(inches * (1 / 12))
         inches = int(inches - (feet * 12))
 
-        embed = discord.Embed(color=bruker.color)
+        embed = discord.Embed(color=user.color)
         embed.add_field(name="Høyde", value=f"{height} cm")
         embed.add_field(name="Høyde (🦅🦅🇺🇸🦅🦅)", value=f"{feet}'{inches}\"")
-        embed.set_author(name=bruker.global_name, icon_url=bruker.avatar)
+        embed.set_author(name=user.global_name, icon_url=user.avatar)
 
         await interaction.response.send_message(embed=embed)
 
@@ -105,6 +107,7 @@ class UserFacts(commands.Cog):
     @app_commands.checks.cooldown(1, 2)
     @height_group.command(name="sett", description="Sett høyden din")
     @app_commands.rename(height_cm="høyde_cm")
+    @app_commands.describe(height_cm="Høyden din i centimeter")
     async def height_set(self, interaction: discord.Interaction, height_cm: app_commands.Range[int, 50, 250]):
         """
         Set your height
@@ -191,18 +194,20 @@ class UserFacts(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True, attach_files=True)
     @app_commands.checks.cooldown(1, 2)
     @mbti_group.command(name="se", description="Se MBTI-en til en bruker")
-    async def mbti_see(self, interaction: discord.Interaction, bruker: discord.Member = None):
+    @app_commands.rename(user="bruker")
+    @app_commands.describe(user="Brukeren du vil se MBTI-en til")
+    async def mbti_see(self, interaction: discord.Interaction, user: discord.Member = None):
         """
         See the MBTI of a user
 
         Parameters
         ----------
         interaction (discord.Interaction): The interaction object
-        bruker (discord.Member): The user to see the MBTI of
+        user (discord.Member): The user to see the MBTI of
         """
 
-        if not bruker:
-            bruker = interaction.user
+        if not user:
+            user = interaction.user
 
         await interaction.response.defer()
 
@@ -211,7 +216,7 @@ class UserFacts(commands.Cog):
             SELECT mbti FROM user_facts
             WHERE discord_id = %s AND mbti IS NOT NULL;
             """,
-            (bruker.id,),
+            (user.id,),
         )
 
         if not user_mbti:
@@ -221,15 +226,15 @@ class UserFacts(commands.Cog):
 
         user_mbti = user_mbti[0]
 
-        embed = discord.Embed(color=bruker.color, title="MBTI", description=user_mbti)
-        embed.set_author(name=bruker.global_name, icon_url=bruker.avatar)
+        embed = discord.Embed(color=user.color, title="MBTI", description=user_mbti)
+        embed.set_author(name=user.global_name, icon_url=user.avatar)
 
         results = await self.bot.db.fetchall(
             """
             SELECT discord_id, mbti FROM user_facts
             WHERE mbti IS NOT NULL and discord_id != %s;
             """,
-            (bruker.id,),
+            (user.id,),
         )
 
         if not results:
@@ -237,24 +242,25 @@ class UserFacts(commands.Cog):
 
         others = []
         for discord_id, mbti in results:
-            user = self.bot.get_user(discord_id)
-            if not user and interaction.guild:
+            other = self.bot.get_user(discord_id)
+            if not other and interaction.guild:
                 try:
-                    user = await interaction.guild.fetch_member(discord_id)
+                    other = await interaction.guild.fetch_member(discord_id)
                 except discord.NotFound:
                     pass
-            if user:
-                others.append((user, mbti))
+            if other:
+                others.append((other, mbti))
 
-        graph_png = await asyncio.to_thread(self.create_mbti_graph, (bruker, user_mbti), others)
-        image = discord.File(BytesIO(graph_png), filename=f"{bruker.id}_mbti.png")
+        graph_png = await asyncio.to_thread(self.create_mbti_graph, (user, user_mbti), others)
+        image = discord.File(BytesIO(graph_png), filename=f"{user.id}_mbti.png")
 
-        embed.set_image(url=f"attachment://{bruker.id}_mbti.png")
+        embed.set_image(url=f"attachment://{user.id}_mbti.png")
         await interaction.followup.send(embed=embed, file=image)
 
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 2)
     @mbti_group.command(name="sett", description="Sett MBTI-en din")
+    @app_commands.describe(mbti="MBTI-typen din, f.eks. INTJ")
     async def mbti_set(self, interaction: discord.Interaction, mbti: str):
         """
         Set your MBTI

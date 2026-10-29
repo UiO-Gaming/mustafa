@@ -332,14 +332,16 @@ class Anime(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @anilist_profile.command(name="generelt", description="Viser informasjon om en Anilistprofil")
-    async def anilist_profile_general(self, interaction: discord.Interaction, bruker: str):
+    @app_commands.rename(user="bruker")
+    @app_commands.describe(user="Anilist-brukernavnet")
+    async def anilist_profile_general(self, interaction: discord.Interaction, user: str):
         """
         Shows general information about a user's Anilist profile
 
         Parameters
         ----------
         interaction (discord.Interaction): Slash command context object
-        bruker (str): The user to get information about
+        user (str): The user to get information about
         """
 
         #  GraphQL
@@ -415,7 +417,7 @@ class Anime(commands.Cog):
             }
         }
         """
-        variables = {"name": bruker}
+        variables = {"name": user}
         data, url = await self.request_anilist(interaction, query, variables, "User")
 
         if not data:
@@ -458,14 +460,16 @@ class Anime(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @anilist_profile.command(name="anime", description="Se statistikk om animetittingen til en bruker")
-    async def anilist_profile_anime_stats(self, interaction: discord.Interaction, bruker: str):
+    @app_commands.rename(user="bruker")
+    @app_commands.describe(user="Anilist-brukernavnet")
+    async def anilist_profile_anime_stats(self, interaction: discord.Interaction, user: str):
         """
         Shows anime viewing statistics from a user's Anilist profile
 
         Parameters
         ----------
         interaction (discord.Interaction): Slash command context object
-        bruker (str): The user to get information about
+        user (str): The user to get information about
         """
 
         #  GraphQL
@@ -504,7 +508,7 @@ class Anime(commands.Cog):
             }
         }
         """
-        variables = {"name": bruker}
+        variables = {"name": user}
         data, url = await self.request_anilist(interaction, query, variables, "User")
 
         if not data:
@@ -549,14 +553,16 @@ class Anime(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @anilist_profile.command(name="manga", description="Se statistikk om mangalesingen til en bruker")
-    async def anilist_profile_manga_stats(self, interaction: discord.Interaction, bruker: str):
+    @app_commands.rename(user="bruker")
+    @app_commands.describe(user="Anilist-brukernavnet")
+    async def anilist_profile_manga_stats(self, interaction: discord.Interaction, user: str):
         """
         Shows manga reading statistics from a user's Anilist profile
 
         Parameters
         ----------
         interaction (discord.Interaction): Slash command context object
-        bruker (str): The user to get information about
+        user (str): The user to get information about
         """
 
         #  GraphQL
@@ -597,7 +603,7 @@ class Anime(commands.Cog):
             }
         }
         """
-        variables = {"name": bruker}
+        variables = {"name": user}
         data, url = await self.request_anilist(interaction, query, variables, "User")
 
         if not data:
@@ -642,14 +648,16 @@ class Anime(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @anilist.command(name="anime", description="Hent informasjon om en anime")
-    async def anilist_anime(self, interaction: discord.Interaction, navn: str):
+    @app_commands.rename(search="navn")
+    @app_commands.describe(search="Navnet på animen")
+    async def anilist_anime(self, interaction: discord.Interaction, search: str):
         """
         Shows information about an anime
 
         Parameters
         ----------
         interaction (discord.Interaction): Slash command context object
-        navn (str): The name of the anime to fetch information about
+        search (str): The name of the anime to fetch information about
         """
 
         #  GraphQL
@@ -707,7 +715,7 @@ class Anime(commands.Cog):
             }
         }
         """
-        variables = {"search": navn, "isMain": True}
+        variables = {"search": search, "isMain": True}
         data, url = await self.request_anilist(interaction, query, variables, "Media")
 
         if not data:
@@ -796,14 +804,16 @@ class Anime(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @anilist.command(name="manga", description="Hent informasjon om en manga")
-    async def anilist_manga(self, interaction: discord.Interaction, navn: str):
+    @app_commands.rename(search="navn")
+    @app_commands.describe(search="Navnet på mangaen")
+    async def anilist_manga(self, interaction: discord.Interaction, search: str):
         """
         Shows information about a manga
 
         Parameters
         ----------
         interaction (discord.Interaction): Slash command context object
-        navn (str): The name of the manga to fetch information about
+        search (str): The name of the manga to fetch information about
         """
 
         query = """
@@ -854,7 +864,7 @@ class Anime(commands.Cog):
                 }
             }
             """
-        variables = {"search": navn}
+        variables = {"search": search}
         data, url = await self.request_anilist(interaction, query, variables, "Media")
 
         if not data:
@@ -927,14 +937,16 @@ class Anime(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @anilist.command(name="karakter", description="Hent informasjon om en karakter")
-    async def anilist_character(self, interaction: discord.Interaction, navn: str):
+    @app_commands.rename(search="navn")
+    @app_commands.describe(search="Navnet på karakteren")
+    async def anilist_character(self, interaction: discord.Interaction, search: str):
         """
         Shows information about a character
 
         Parameters
         ----------
         interaction (discord.Interaction): Slash command context object
-        navn (str): The name of the character to fetch information about
+        search (str): The name of the character to fetch information about
         """
 
         query = """
@@ -973,7 +985,7 @@ class Anime(commands.Cog):
                 }
             }
             """
-        variables = {"search": navn}
+        variables = {"search": search}
         data, url = await self.request_anilist(interaction, query, variables, "Character")
 
         if not data:
@@ -1021,14 +1033,16 @@ class Anime(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @anilist.command(name="skaper", description="Hent informasjon om en skaper")
-    async def anilist_creator(self, interaction: discord.Interaction, navn: str):
+    @app_commands.rename(search="navn")
+    @app_commands.describe(search="Navnet på skaperen")
+    async def anilist_creator(self, interaction: discord.Interaction, search: str):
         """
         Shows information about a creator
 
         Parameters
         ----------
         interaction (discord.Interaction): Slash command context object
-        navn (str): The name of the creator to fetch information about
+        search (str): The name of the creator to fetch information about
         """
 
         query = """
@@ -1071,7 +1085,7 @@ class Anime(commands.Cog):
                 }
             }
             """
-        variables = {"search": navn}
+        variables = {"search": search}
         data, url = await self.request_anilist(interaction, query, variables, "Staff")
 
         if not data:
@@ -1120,14 +1134,16 @@ class Anime(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @anilist.command(name="studio", description="Hent informasjon om et studio")
-    async def anilist_studio(self, interaction: discord.Interaction, navn: str):
+    @app_commands.rename(search="navn")
+    @app_commands.describe(search="Navnet på studioet")
+    async def anilist_studio(self, interaction: discord.Interaction, search: str):
         """
         Shows information about a studio
 
         Parameters
         ----------
         interaction (discord.Interaction): Slash command context object
-        navn (str): The name of the studio to fetch information about
+        search (str): The name of the studio to fetch information about
         """
 
         query = """
@@ -1151,7 +1167,7 @@ class Anime(commands.Cog):
                 }
                 }
             """
-        variables = {"search": navn}
+        variables = {"search": search}
         data, url = await self.request_anilist(interaction, query, variables, "Studio")
 
         if not data:
