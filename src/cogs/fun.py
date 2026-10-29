@@ -13,7 +13,7 @@ class Fun(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         """
 
         await ctx.reply("<https://imgur.com/a/uGopaSq>")
@@ -26,7 +26,7 @@ class Fun(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         """
 
         await ctx.reply("https://i.imgur.com/ypyK1mi.jpg")
@@ -39,7 +39,7 @@ class Fun(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         """
 
         await ctx.reply("https://i.imgur.com/ZqgZEEA.jpg")
@@ -52,7 +52,7 @@ class Fun(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         """
 
         await ctx.reply("https://i.imgur.com/Gx9DQE5.jpg")
@@ -65,7 +65,7 @@ class Fun(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         """
 
         await ctx.reply("https://i.imgur.com/188MoIV.jpg")
@@ -78,7 +78,7 @@ class Fun(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         """
 
         await ctx.reply("https://twitter.com/NTNU/status/970667413564993536")
@@ -91,7 +91,7 @@ class Fun(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         """
 
         await ctx.reply("https://i.imgur.com/h84fknj.jpg")
@@ -100,11 +100,11 @@ class Fun(commands.Cog):
     @commands.command()
     async def erna(self, ctx: commands.Context):
         """
-        erna, vil ikke
+        Reply with Erna Solberg's "vil ikke" tweet
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         """
 
         await ctx.reply("https://twitter.com/erna_solberg/status/1075333228779765760")
@@ -117,7 +117,7 @@ class Fun(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         """
 
         await ctx.reply("https://twitter.com/vikingfotball/status/919622148599230465")
@@ -130,7 +130,7 @@ class Fun(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         """
 
         await ctx.reply("A snake eating its own tail indicates that its excrement provides food for it")
@@ -143,7 +143,7 @@ class Fun(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         """
 
         await ctx.reply("https://youtube.com/playlist?list=PLFV_L_I9qjsoVvh0KT5kHC2_VB8ZGtQoG&si=CpioMM0k3-XTrHCL")
@@ -156,7 +156,7 @@ class Fun(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         """
 
         await ctx.reply(
@@ -171,7 +171,7 @@ class Fun(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         """
 
         await ctx.reply(
@@ -186,7 +186,7 @@ class Fun(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         """
 
         f = discord.File("./src/assets/edb.png")
@@ -199,7 +199,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(Fun(bot))

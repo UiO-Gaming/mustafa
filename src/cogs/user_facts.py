@@ -1,3 +1,6 @@
+import asyncio
+from io import BytesIO
+
 import discord
 import graphviz
 import numpy as np
@@ -10,10 +13,16 @@ from cogs.utils import misc_utils
 
 
 class UserFacts(commands.Cog):
+    """Let users share facts about themselves, like their height and MBTI"""
+
     def __init__(self, bot):
+        """
+        Parameters
+        ----------
+        bot (commands.Bot): The bot instance
+        """
+
         self.bot = bot
-        self.cursor = self.bot.db_connection.cursor()
-        self.init_db()
 
         self.mbti_codes = {
             "INTJ",
@@ -36,47 +45,53 @@ class UserFacts(commands.Cog):
         self.mbti_list = list(self.mbti_codes)
         self.similarity_matrix = self.create_similarity_matrix()
 
-    def init_db(self):
+    async def cog_load(self):
+        """
+        Set up the database before the cog is used
+        """
+
+        await self.init_db()
+
+    async def init_db(self):
         """
         Create the necessary tables for the birthday cog to work
         """
 
-        self.cursor.execute(
-            """
+        await self.bot.db.execute("""
             CREATE TABLE IF NOT EXISTS user_facts (
                 discord_id BIGINT PRIMARY KEY,
                 mbti CHAR(4),
                 height INT
             );
-            """
-        )
+            """)
 
     height_group = app_commands.Group(name="høyde", description="Se, endre eller fjern høyde for brukere på serveren")
 
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 2)
     @height_group.command(name="se", description="Se høyden til en bruker")
-    async def height_see(self, interaction: discord.Interaction, bruker: discord.Member = None):
+    @app_commands.rename(user="bruker")
+    @app_commands.describe(user="Brukeren du vil se høyden til")
+    async def height_see(self, interaction: discord.Interaction, user: discord.Member = None):
         """
         See the height of a user
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
-        bruker (discord.Member): The user to see the height of
+        interaction (discord.Interaction): The slash command interaction
+        user (discord.Member): The user to see the height of
         """
 
-        if not bruker:
-            bruker = interaction.user
+        if not user:
+            user = interaction.user
 
-        self.cursor.execute(
+        height = await self.bot.db.fetchone(
             """
             SELECT height FROM user_facts
             WHERE discord_id = %s and height IS NOT NULL;
             """,
-            (bruker.id,),
+            (user.id,),
         )
-        height = self.cursor.fetchone()
 
         if not height:
             return await interaction.response.send_message(
@@ -89,10 +104,10 @@ class UserFacts(commands.Cog):
         feet = int(inches * (1 / 12))
         inches = int(inches - (feet * 12))
 
-        embed = discord.Embed(color=bruker.color)
+        embed = discord.Embed(color=user.color)
         embed.add_field(name="Høyde", value=f"{height} cm")
         embed.add_field(name="Høyde (🦅🦅🇺🇸🦅🦅)", value=f"{feet}'{inches}\"")
-        embed.set_author(name=bruker.global_name, icon_url=bruker.avatar)
+        embed.set_author(name=user.global_name, icon_url=user.avatar)
 
         await interaction.response.send_message(embed=embed)
 
@@ -100,17 +115,18 @@ class UserFacts(commands.Cog):
     @app_commands.checks.cooldown(1, 2)
     @height_group.command(name="sett", description="Sett høyden din")
     @app_commands.rename(height_cm="høyde_cm")
+    @app_commands.describe(height_cm="Høyden din i centimeter")
     async def height_set(self, interaction: discord.Interaction, height_cm: app_commands.Range[int, 50, 250]):
         """
         Set your height
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
+        interaction (discord.Interaction): The slash command interaction
         height_cm (int): The height of the user
         """
 
-        self.cursor.execute(
+        await self.bot.db.execute(
             """
             INSERT INTO user_facts (discord_id, height)
             VALUES (%s, %s)
@@ -131,10 +147,10 @@ class UserFacts(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
+        interaction (discord.Interaction): The slash command interaction
         """
 
-        self.cursor.execute(
+        updated = await self.bot.db.execute(
             """
             UPDATE user_facts
             SET height = NULL
@@ -143,7 +159,7 @@ class UserFacts(commands.Cog):
             (interaction.user.id,),
         )
 
-        if self.cursor.rowcount == 0:
+        if updated == 0:
             return await interaction.response.send_message(
                 embed=embed_templates.success("Du hadde ikke lagt inn høyden din fra før av men ok :)")
             )
@@ -159,18 +175,16 @@ class UserFacts(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
+        interaction (discord.Interaction): The slash command interaction
         """
 
-        self.cursor.execute(
-            """
+        result = await self.bot.db.fetchall("""
             SELECT discord_id, height FROM user_facts
             WHERE height IS NOT NULL
             ORDER BY height DESC;
-            """
-        )
+            """)
 
-        if not (result := self.cursor.fetchall()):
+        if not result:
             return await interaction.response.send_message(
                 embed=embed_templates.error_warning("Ingen har lagt inn høyden sin enda")
             )
@@ -188,83 +202,87 @@ class UserFacts(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True, attach_files=True)
     @app_commands.checks.cooldown(1, 2)
     @mbti_group.command(name="se", description="Se MBTI-en til en bruker")
-    async def mbti_see(self, interaction: discord.Interaction, bruker: discord.Member = None):
+    @app_commands.rename(user="bruker")
+    @app_commands.describe(user="Brukeren du vil se MBTI-en til")
+    async def mbti_see(self, interaction: discord.Interaction, user: discord.Member = None):
         """
         See the MBTI of a user
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
-        bruker (discord.Member): The user to see the MBTI of
+        interaction (discord.Interaction): The slash command interaction
+        user (discord.Member): The user to see the MBTI of
         """
 
-        if not bruker:
-            bruker = interaction.user
+        if not user:
+            user = interaction.user
 
-        self.cursor.execute(
+        await interaction.response.defer()
+
+        user_mbti = await self.bot.db.fetchone(
             """
             SELECT mbti FROM user_facts
             WHERE discord_id = %s AND mbti IS NOT NULL;
             """,
-            (bruker.id,),
+            (user.id,),
         )
-        user_mbti = self.cursor.fetchone()
 
         if not user_mbti:
-            return await interaction.response.send_message(
+            return await interaction.followup.send(
                 embed=embed_templates.error_warning("Brukeren har ikke lagt inn MBTI-en sin")
             )
 
         user_mbti = user_mbti[0]
 
-        embed = discord.Embed(color=bruker.color, title="MBTI", description=user_mbti)
-        embed.set_author(name=bruker.global_name, icon_url=bruker.avatar)
+        embed = discord.Embed(color=user.color, title="MBTI", description=user_mbti)
+        embed.set_author(name=user.global_name, icon_url=user.avatar)
 
-        self.cursor.execute(
+        results = await self.bot.db.fetchall(
             """
             SELECT discord_id, mbti FROM user_facts
             WHERE mbti IS NOT NULL and discord_id != %s;
             """,
-            (bruker.id,),
+            (user.id,),
         )
 
-        if not (results := self.cursor.fetchall()):
-            return await interaction.response.send_message(embed=embed)
+        if not results:
+            return await interaction.followup.send(embed=embed)
 
         others = []
         for discord_id, mbti in results:
-            if user := self.bot.get_user(discord_id):
-                others.append((user, mbti))
-            elif user := await interaction.guild.fetch_member(discord_id):
-                others.append((user, mbti))
-            else:
-                others.append((discord_id, mbti))
+            other = self.bot.get_user(discord_id)
+            if not other and interaction.guild:
+                try:
+                    other = await interaction.guild.fetch_member(discord_id)
+                except discord.NotFound:
+                    pass
+            if other:
+                others.append((other, mbti))
 
-        self.create_mbti_graph((bruker, user_mbti), others)
+        graph_png = await asyncio.to_thread(self.create_mbti_graph, (user, user_mbti), others)
+        image = discord.File(BytesIO(graph_png), filename=f"{user.id}_mbti.png")
 
-        with open(f"src/assets/temp/{bruker.id}_mbti.png", "rb") as f:
-            image = discord.File(f, filename=f"{bruker.id}_mbti.png")
-
-        embed.set_image(url=f"attachment://{bruker.id}_mbti.png")
-        await interaction.response.send_message(embed=embed, file=image)
+        embed.set_image(url=f"attachment://{user.id}_mbti.png")
+        await interaction.followup.send(embed=embed, file=image)
 
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 2)
     @mbti_group.command(name="sett", description="Sett MBTI-en din")
+    @app_commands.describe(mbti="MBTI-typen din, f.eks. INTJ")
     async def mbti_set(self, interaction: discord.Interaction, mbti: str):
         """
         Set your MBTI
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
+        interaction (discord.Interaction): The slash command interaction
         mbti (str): The MBTI of the user
         """
 
         if mbti.upper() not in self.mbti_codes:
             return await interaction.response.send_message(embed=embed_templates.error_warning("Ugyldig MBTI"))
 
-        self.cursor.execute(
+        await self.bot.db.execute(
             """
             INSERT INTO user_facts (discord_id, mbti)
             VALUES (%s, %s)
@@ -283,7 +301,7 @@ class UserFacts(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
+        interaction (discord.Interaction): The interaction that triggered this
         current (str): The current input
         """
 
@@ -300,10 +318,10 @@ class UserFacts(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
+        interaction (discord.Interaction): The slash command interaction
         """
 
-        self.cursor.execute(
+        updated = await self.bot.db.execute(
             """
             UPDATE user_facts
             SET mbti = NULL
@@ -312,7 +330,7 @@ class UserFacts(commands.Cog):
             (interaction.user.id,),
         )
 
-        if self.cursor.rowcount == 0:
+        if updated == 0:
             return await interaction.response.send_message(
                 embed=embed_templates.success("Du hadde ikke lagt inn MBTIen din fra før av men ok :)")
             )
@@ -328,7 +346,7 @@ class UserFacts(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         embed = discord.Embed(title="Hva er MBTI?", color=discord.Color.blurple())
@@ -342,6 +360,14 @@ class UserFacts(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
     def create_similarity_matrix(self):
+        """
+        Count how many letters every pair of MBTI types has in common
+
+        Returns
+        ----------
+        (np.ndarray): The number of shared letters, indexed like mbti_list
+        """
+
         def similarity(mbti_1, mbti_2):
             similarity = 0
             for i in range(4):
@@ -359,7 +385,22 @@ class UserFacts(commands.Cog):
 
         return similarity_matrix
 
-    def create_mbti_graph(self, user_mbti: tuple[discord.Member, str], others: list[tuple[discord.Member, str]]):
+    def create_mbti_graph(
+        self, user_mbti: tuple[discord.Member, str], others: list[tuple[discord.Member, str]]
+    ) -> bytes:
+        """
+        Draw a graph of how similar a user's MBTI is to other users'
+
+        Parameters
+        ----------
+        user_mbti (tuple[discord.Member, str]): The invoking user and their MBTI
+        others (list[tuple[discord.Member, str]]): Other users and their MBTIs
+
+        Returns
+        ----------
+        (bytes): The graph as PNG data
+        """
+
         user, mbti = user_mbti
 
         # Create a Graphviz graph
@@ -369,7 +410,7 @@ class UserFacts(commands.Cog):
         graph.node_attr["shape"] = "circle"
 
         # Invoking user's node
-        graph.node(str(user.global_name), f"{user.global_name}\n{mbti}", color="green")
+        graph.node(str(user.id), f"{user.display_name}\n{mbti}", color="green")
 
         user_index = self.mbti_list.index(mbti)
 
@@ -379,10 +420,10 @@ class UserFacts(commands.Cog):
             similarity = self.similarity_matrix[user_index, other_index]
             edge_length = 2 ** (4 - similarity)
 
-            graph.node(other_user.global_name, f"{other_user.global_name}\n{other_mbti}")
-            graph.edge(user.global_name, other_user.global_name, len=str(edge_length))
+            graph.node(str(other_user.id), f"{other_user.display_name}\n{other_mbti}")
+            graph.edge(str(user.id), str(other_user.id), len=str(edge_length))
 
-        graph.render(f"{user.id}_mbti", directory="./src/assets/temp", view=False, overwrite_source=True)
+        return graph.pipe(format="png")
 
 
 async def setup(bot: commands.Bot):
@@ -391,7 +432,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(UserFacts(bot))

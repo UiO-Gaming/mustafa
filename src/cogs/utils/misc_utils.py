@@ -1,15 +1,134 @@
+import asyncio
 import datetime
+import functools
+import subprocess
 import textwrap
+from dataclasses import dataclass
 from math import ceil
-from zoneinfo import ZoneInfo
 
+import aiohttp
 import cv2
+import discord
 import numpy as np
 from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
 
-MIDNIGHT = datetime.time(hour=0, minute=0, tzinfo=ZoneInfo("Europe/Oslo"))
+# Midnight in the bot's time zone. run.py sets it before loading the cogs
+MIDNIGHT = datetime.time(tzinfo=datetime.UTC)
+
+
+def localize(dt: datetime.datetime, tz: datetime.tzinfo | None) -> datetime.datetime:
+    """
+    Attach a time zone to a naive datetime without changing its wall time
+
+    Parameters
+    ----------
+    dt (datetime.datetime): The naive datetime
+    tz (datetime.tzinfo | None): The time zone. None means the system time zone
+
+    Returns
+    ----------
+    (datetime.datetime): The aware datetime
+    """
+
+    return dt.replace(tzinfo=tz) if tz else dt.astimezone()
+
+
+@dataclass
+class GitVersion:
+    """The branch and commit the code is checked out at"""
+
+    branch: str
+    commit: str
+    subject: str
+    committed: datetime.datetime
+    dirty: bool
+
+
+def git_version() -> GitVersion | None:
+    """
+    Get the branch and latest commit of the git repository the bot runs from
+
+    Returns
+    ----------
+    (GitVersion | None): The branch and commit. None if git or the repository isn't available
+    """
+
+    def git(*args: str) -> str:
+        return subprocess.run(["git", *args], capture_output=True, text=True, check=True).stdout.strip()
+
+    try:
+        branch = git("rev-parse", "--abbrev-ref", "HEAD")
+        commit, timestamp, subject = git("log", "-1", "--format=%H%n%ct%n%s").split("\n", 2)
+        dirty = bool(git("status", "--porcelain", "--untracked-files=no"))
+    except (OSError, subprocess.CalledProcessError, ValueError):
+        return None
+
+    return GitVersion(
+        branch=branch,
+        commit=commit,
+        subject=subject,
+        committed=datetime.datetime.fromtimestamp(int(timestamp), datetime.UTC),
+        dirty=dirty,
+    )
+
+
+# The exceptions discord.py's tasks.loop retries instead of stopping on
+RETRIED_TASK_EXCEPTIONS = (
+    OSError,
+    discord.GatewayNotFound,
+    discord.ConnectionClosed,
+    aiohttp.ClientError,
+    asyncio.TimeoutError,
+)
+
+
+def log_errors(func):
+    """
+    Decorator for background task loops that logs exceptions instead of letting them stop the loop.
+    Network errors are re-raised so discord.py can retry the iteration like it normally does.
+    Put it below the @tasks.loop decorator. The decorated method's class needs a `bot` attribute
+
+    Parameters
+    ----------
+    func (callable): The loop's coroutine function
+    """
+
+    @functools.wraps(func)
+    async def wrapper(self, *args, **kwargs):
+        try:
+            await func(self, *args, **kwargs)
+        except RETRIED_TASK_EXCEPTIONS:
+            raise
+        except Exception:
+            self.bot.logger.exception(f"Unhandled error in background task {func.__qualname__}")
+
+    return wrapper
+
+
+class RateLimiter:
+    """Spaces out calls so that at most a given number happen per second"""
+
+    def __init__(self, per_second: float):
+        """
+        Parameters
+        ----------
+        per_second (float): The maximum number of calls per second
+        """
+
+        self.interval = 1 / per_second
+        self.next_slot = 0.0
+
+    async def wait(self):
+        """
+        Wait until the next free slot. Call this before every rate limited call
+        """
+
+        now = asyncio.get_running_loop().time()
+        slot = max(now, self.next_slot)
+        self.next_slot = slot + self.interval
+        await asyncio.sleep(slot - now)
 
 
 class Paginator:
@@ -36,7 +155,7 @@ class Paginator:
 
         Returns
         ----------
-        (list|None): The page you requested
+        (list | None): The page you requested
         """
 
         if page < 1 or page > self.total_page_count:
@@ -107,7 +226,7 @@ class Paginator:
         return self.get_page(self.current_page)
 
 
-async def put_text_in_box(
+def put_text_in_box(
     image: np.ndarray,
     text: str,
     top_left: tuple,
@@ -142,32 +261,25 @@ async def put_text_in_box(
     # We multiply by 0.9 to give some padding
     w, h = (x2 - x1) * 0.9, (y2 - y1) * 0.9
 
-    # Initialize font width/height to 0 in order to run the while loops below at least once
-    font_width = 0
-    font_height = 0
-
     # Add newlines to the text. Here we have gone with 15 characters per line
     # This is arbitrary, but seems to work well
     text = textwrap.fill(text, width=15)
 
-    # Increase the font size until the longest line of text does not fit in the bounding box anymore
+    # Increase the font size as long as the next size still fits in the bounding box
     # We also have to check the height, since the text might be too tall for the box
-    while font_width < w and font_height < h:
-        font = ImageFont.truetype(font_path, font_size)
+    font = ImageFont.truetype(font_path, font_size)
+    while True:
+        next_font = ImageFont.truetype(font_path, font_size + 1)
 
-        longest_line = max(text.split("\n"), key=lambda x: font.getlength(x))
-        font_width = font.getlength(longest_line)
+        left, top, right, bottom = draw.multiline_textbbox((0, 0), text, font=next_font, align="center")
 
-        # bbox doesn't work with multiline text, so we have to calculate the height manually
-        # take the height of the bounding box, multiply by 1.5 (our assumed line dividor height)
-        # after that, we multiply by the number of lines
-        font_box = font.getbbox(text)
-        font_height = ((font_box[3] - font_box[1]) * 1.5) * text.count("\n")
+        if right - left >= w or bottom - top >= h:
+            break
 
+        font = next_font
         font_size += 1
 
     # Actually draw the text
-    draw.multiline_textbbox((w, h), text=text, font=font, align="center", anchor="mm")
     center_of_box = ((x1 + x2) // 2, (y1 + y2) // 2)
     draw.multiline_text(center_of_box, text, font=font, fill=color, align="center", anchor="mm")
 

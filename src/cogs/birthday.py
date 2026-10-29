@@ -3,7 +3,6 @@ import random
 from datetime import datetime
 
 import discord
-import psycopg2
 from dateutil.relativedelta import relativedelta
 from discord import app_commands
 from discord.ext import commands
@@ -26,30 +25,33 @@ class Birthday(commands.Cog):
         """
 
         self.bot = bot
-        self.cursor = self.bot.db_connection.cursor()
-        self.init_db()
-        self.cursor.execute("SET timezone TO 'Europe/Oslo';")
+
+    async def cog_load(self):
+        """
+        Set up the database before the cog is used
+        """
+
+        await self.init_db()
         self.birthday_check.start()
 
-    def init_db(self):
+    async def init_db(self):
         """
         Create the necessary tables for the birthday cog to work
         """
 
-        self.cursor.execute(
-            """
+        await self.bot.db.execute("""
             CREATE TABLE IF NOT EXISTS birthdays (
                 discord_id BIGINT PRIMARY KEY,
                 birthday DATE
             );
-            """
-        )
+            """)
 
     birthday_group = app_commands.Group(
         name="bursdag", description="Se, endre eller fjern bursdager for brukere på serveren"
     )
 
     @tasks.loop(time=misc_utils.MIDNIGHT)
+    @misc_utils.log_errors
     async def birthday_check(self):
         """
         Check if it's someone's birthday every day at midgnight and send a greeting if it is
@@ -59,31 +61,43 @@ class Birthday(commands.Cog):
 
         self.bot.logger.info("Checking for birthdays")
 
-        self.cursor.execute(
+        today = self.local_today()
+        birthdays = await self.bot.db.fetchall(
             """
             SELECT *
             FROM birthdays
-            WHERE EXTRACT(MONTH FROM birthday) = EXTRACT(MONTH FROM current_date)
-                AND EXTRACT(DAY FROM birthday) = EXTRACT(DAY FROM current_date);
-            """
+            WHERE (
+                EXTRACT(MONTH FROM birthday) = EXTRACT(MONTH FROM %(today)s)
+                AND EXTRACT(DAY FROM birthday) = EXTRACT(DAY FROM %(today)s)
+            ) OR (
+                -- Celebrate 29 February birthdays on 28 February in years that aren't leap years
+                to_char(birthday, 'MM-DD') = '02-29'
+                AND to_char(%(today)s, 'MM-DD') = '02-28'
+                AND to_char(%(today)s + 1, 'MM-DD') = '03-01'
+            );
+            """,
+            {"today": today.date()},
         )
 
-        birthdays = self.cursor.fetchall()
         self.bot.logger.info(f"Found the following birthdays: {birthdays}")
 
         if not birthdays:
             return
 
         guild = self.bot.get_guild(self.bot.UIO_GAMING_GUILD_ID)
-        channel = guild.get_channel(747542544291987597)
+        channel = guild.get_channel(self.bot.channel_ids.get("general")) if guild else None
+        if not channel:
+            self.bot.logger.warning("Could not find the general channel. Check ids.guild and ids.channels.general")
+            return
         for birthday in birthdays:
-            user = await guild.fetch_member(birthday[0])
-            if not user:
+            try:
+                user = await guild.fetch_member(birthday[0])
+            except discord.NotFound:
                 self.bot.logger.warning(f"Could not find user with ID {birthday[0]}")
                 continue
 
             date = datetime(birthday[1].year, birthday[1].month, birthday[1].day)
-            years_old = relativedelta(datetime.now(), date).years
+            years_old = relativedelta(today, date).years
 
             # Is it inefficent to define a list of greetings per iteration? Yes
             # Am I hoping python somehow will automatically optimize my code? Yes
@@ -114,7 +128,7 @@ class Birthday(commands.Cog):
                     + "bare har 1% sjanse å få!!!!\nhttps://youtu.be/mOyDlnvZwcg"
                 )
 
-            if user.id == 170506717140877312:
+            if user.id == self.bot.user_ids.get("dev"):
                 message = (
                     f"Ett steg nærmere døden i dag broder,,, Iskjhe bra,,, {user.mention}\n\n"
                     + "https://youtu.be/9Fr3oLZnmvc"
@@ -131,11 +145,24 @@ class Birthday(commands.Cog):
             await channel.send(message)
 
     async def cog_unload(self):
+        """
+        Stop the birthday check when the cog is unloaded
+        """
+
         self.bot.logger.info("Unloading cog")
         self.birthday_check.cancel()
-        self.cursor.close()
 
-    def fetch_user_birthday(self, user_id: int) -> datetime | None:
+    def local_today(self) -> datetime:
+        """
+        Returns
+        ----------
+        (datetime): Midnight today in the bot's time zone, as a naive datetime to compare with birthdays
+        """
+
+        now = discord.utils.utcnow().astimezone(self.bot.timezone)
+        return datetime(now.year, now.month, now.day)
+
+    async def fetch_user_birthday(self, user_id: int) -> datetime | None:
         """
         Fetch the birthday of a user in the database
 
@@ -148,13 +175,12 @@ class Birthday(commands.Cog):
         (datetime | None): The birthday of the user
         """
 
-        self.cursor.execute("SELECT birthday FROM birthdays WHERE discord_id = (%s)", (user_id,))
-        result = self.cursor.fetchone()
+        result = await self.bot.db.fetchone("SELECT birthday FROM birthdays WHERE discord_id = (%s)", (user_id,))
         if result:
             birthday = result[0]
             return datetime(birthday.year, birthday.month, birthday.day)
 
-    def fetch_user_next_birthday(self, user_id: int) -> datetime:
+    async def fetch_user_next_birthday(self, user_id: int) -> datetime:
         """
         Get date of next birthday for a user
 
@@ -167,23 +193,23 @@ class Birthday(commands.Cog):
         (datetime): The date of the next birthday
         """
 
-        self.cursor.execute(
+        results = await self.bot.db.fetchone(
             """
-            SELECT *, CAST(birthday + ((EXTRACT(YEAR FROM AGE(birthday)) + 1) * interval '1' YEAR) AS DATE) AS next_bday
+            SELECT *,
+                CAST(birthday + ((EXTRACT(YEAR FROM AGE(%s, birthday)) + 1) * interval '1' YEAR) AS DATE) AS next_bday
             FROM birthdays
             WHERE discord_id = %s
             """,
-            (user_id,),
+            (self.local_today().date(), user_id),
         )
-        results = self.cursor.fetchone()
         if results:
             birthday = results[2]
             return datetime(birthday.year, birthday.month, birthday.day)
         else:
             # This will never happen unless a database error occurs. Keeping the type checker happy
-            return datetime.now()
+            return self.local_today()
 
-    def fetch_next_birthdays(self) -> list[tuple[int, datetime, datetime]]:
+    async def fetch_next_birthdays(self) -> list[tuple[int, datetime, datetime]]:
         """
         Fetch the 5 first future birthdays of all users in the database
 
@@ -192,14 +218,15 @@ class Birthday(commands.Cog):
         (list[tuple[int, datetime, datetime]]): List of tuples containing the user ID, date of birth and next birthday
         """
 
-        self.cursor.execute(
+        results = await self.bot.db.fetchall(
             """
-            SELECT *, CAST(birthday + ((EXTRACT(YEAR FROM AGE(birthday)) + 1) * interval '1' YEAR) AS DATE) AS next_bday
+            SELECT *,
+                CAST(birthday + ((EXTRACT(YEAR FROM AGE(%s, birthday)) + 1) * interval '1' YEAR) AS DATE) AS next_bday
             FROM birthdays
             ORDER BY next_bday ASC
-            """
+            """,
+            (self.local_today().date(),),
         )
-        results = self.cursor.fetchall()
 
         # Convert date objects to datetime objects
         birthdays = []
@@ -211,7 +238,7 @@ class Birthday(commands.Cog):
 
         return birthdays
 
-    def set_user_birthday(self, user_id: int, birthday: datetime):
+    async def set_user_birthday(self, user_id: int, birthday: datetime):
         """
         Set the birthday of a user in the database. If it already exists, update it.
 
@@ -221,35 +248,40 @@ class Birthday(commands.Cog):
         birthday (datetime): The birthday of the user
         """
 
-        try:
-            self.cursor.execute(
-                """
-                INSERT INTO birthdays (discord_id, birthday)
-                VALUES (%s, %s)
-                """,
-                (user_id, birthday),
-            )
-        except psycopg2.errors.UniqueViolation:
-            self.bot.db_connection.rollback()
-            self.cursor.execute("UPDATE birthdays SET birthday = %s WHERE discord_id = %s", (birthday, user_id))
+        await self.bot.db.execute(
+            """
+            INSERT INTO birthdays (discord_id, birthday)
+            VALUES (%s, %s)
+            ON CONFLICT (discord_id) DO UPDATE SET birthday = EXCLUDED.birthday
+            """,
+            (user_id, birthday),
+        )
 
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @birthday_group.command(name="sett", description="Lagrer din bursdag i databasen")
-    async def birthday_set(self, interaction: discord.Interaction, dag: int, måned: int, år: int):
+    @app_commands.rename(day="dag", month="måned", year="år")
+    @app_commands.describe(day="Dagen i måneden", month="Måneden", year="Året du ble født")
+    async def birthday_set(
+        self,
+        interaction: discord.Interaction,
+        day: app_commands.Range[int, 1, 31],
+        month: app_commands.Range[int, 1, 12],
+        year: int,
+    ):
         """
         Allows the user to set their birthday in the database.
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
-        dag (int): Day of the month
-        måned (int): Month of the year
-        år (int): Year
+        interaction (discord.Interaction): The slash command interaction
+        day (int): Day of the month
+        month (int): Month of the year
+        year (int): Year
         """
 
         try:
-            date = datetime(år, måned, dag)
+            date = datetime(year, month, day)
         except ValueError:
             return await interaction.response.send_message(
                 embed=embed_templates.error_warning("ikke en gyldig dato, gjøk!"), ephemeral=True
@@ -261,14 +293,15 @@ class Birthday(commands.Cog):
                 ephemeral=True,
             )
 
-        if date > datetime.now():
+        if date > self.local_today():
             return await interaction.response.send_message(
                 embed=embed_templates.error_warning("Du kan ikke sette en fremtidig dato!"),
                 ephemeral=True,
             )
 
-        self.set_user_birthday(interaction.user.id, date)
+        await self.set_user_birthday(interaction.user.id, date)
 
+        date = misc_utils.localize(date, self.bot.timezone)
         embed = embed_templates.success(f"Bursdag satt til {discord.utils.format_dt(date, style='D')}")
         await interaction.response.send_message(embed=embed)
 
@@ -281,10 +314,10 @@ class Birthday(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
-        self.cursor.execute("DELETE FROM birthdays WHERE discord_id = (%s)", (interaction.user.id,))
+        await self.bot.db.execute("DELETE FROM birthdays WHERE discord_id = (%s)", (interaction.user.id,))
 
         embed = embed_templates.success("Bursdag fjernet")
         await interaction.response.send_message(embed=embed)
@@ -292,44 +325,47 @@ class Birthday(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @birthday_group.command(name="se", description="Viser bursdagen til en bruker. Om ingen er gitt, vises din egen")
-    async def birthday_show(
-        self, interaction: discord.Interaction, bruker: discord.Member | discord.User | None = None
-    ):
+    @app_commands.rename(user="bruker")
+    @app_commands.describe(user="Brukeren du vil se bursdagen til. Standard er deg selv")
+    async def birthday_show(self, interaction: discord.Interaction, user: discord.Member | discord.User | None = None):
         """
         Shows the birthday of a user. If none is given, shows the invoking user's one.
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
-        bruker (discord.Member | discord.User | None): The user to show the birthday of. Defaults to None.
+        interaction (discord.Interaction): The slash command interaction
+        user (discord.Member | discord.User | None): The user to show the birthday of. Defaults to the invoking user
         """
 
-        if not bruker:
-            bruker = interaction.user
-
-        user = self.fetch_user_birthday(bruker.id)
-
         if not user:
+            user = interaction.user
+
+        user_birthday = await self.fetch_user_birthday(user.id)
+
+        if not user_birthday:
             return await interaction.response.send_message(
                 embed=embed_templates.error_warning("Brukeren har ikke registrert bursdagen sin")
             )
 
         # Current age information
-        birthday = datetime(user.year, user.month, user.day)
-        days_old = (datetime.now() - birthday).days
-        years_old = relativedelta(datetime.now(), birthday).years
+        today = self.local_today()
+        birthday = datetime(user_birthday.year, user_birthday.month, user_birthday.day)
+        days_old = (today - birthday).days
+        years_old = relativedelta(today, birthday).years
 
         #  Next birthday information
-        next_birthday = self.fetch_user_next_birthday(bruker.id)
-        next_birthday_days = (next_birthday - datetime.now()).days
+        next_birthday = await self.fetch_user_next_birthday(user.id)
+        next_birthday_days = (next_birthday - today).days
 
         # Japanese era
         japanese_era = EraDate.from_date(birthday).strftime("%-K%-y年")
 
-        embed = discord.Embed(description=bruker.mention, color=bruker.color)
-        embed.set_thumbnail(url=bruker.display_avatar)
-        embed.set_author(name=bruker.name, icon_url=bruker.display_avatar)
-        embed.add_field(name="Bursdag", value=discord.utils.format_dt(birthday, style="D"))
+        embed = discord.Embed(description=user.mention, color=user.color)
+        embed.set_thumbnail(url=user.display_avatar)
+        embed.set_author(name=user.name, icon_url=user.display_avatar)
+        embed.add_field(
+            name="Bursdag", value=discord.utils.format_dt(misc_utils.localize(birthday, self.bot.timezone), style="D")
+        )
         embed.add_field(name="Hvor gammel?", value=f"{years_old} år\n({days_old} dager)", inline=False)
         embed.add_field(name="Weeb age", value=japanese_era, inline=False)
         embed.add_field(
@@ -339,7 +375,6 @@ class Birthday(commands.Cog):
         )
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.guild_only()
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @birthday_group.command(name="kommende", description="Viser en liste over de kommende bursdager i serveren")
@@ -349,29 +384,35 @@ class Birthday(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
+
+        if not interaction.guild:
+            return await interaction.response.send_message(
+                embed=embed_templates.error_warning("Denne kommandoen kan bare brukes i en server"), ephemeral=True
+            )
 
         await interaction.response.defer()
 
-        next_birthdays = self.fetch_next_birthdays()
+        next_birthdays = await self.fetch_next_birthdays()
 
         if not next_birthdays:
             return await interaction.followup.send(embed=embed_templates.error_warning("Ingen bursdager"))
 
-        birthday_strings = []
-        for user in next_birthdays:
-            user_id, _, next_birthday = user
-            try:
-                discord_user = await interaction.guild.fetch_member(
-                    user_id
-                )  # Guild should always be available because of guild_only
-            except (discord.NotFound, discord.HTTPException):
-                continue
+        # The members intent keeps every member cached, so names can be looked up without an API request each.
+        # The cache is filled when the bot starts, so make sure it's done if the command is used right after
+        if not interaction.guild.chunked:
+            await interaction.guild.chunk()
 
+        birthday_strings = []
+        for user_id, _, next_birthday in next_birthdays:
+            if not (member := interaction.guild.get_member(user_id)):
+                continue  # The user has left the server
+
+            next_birthday = misc_utils.localize(next_birthday, self.bot.timezone)
             timestamp = discord.utils.format_dt(next_birthday, style="D")
             relative_timestamp = discord.utils.format_dt(next_birthday, style="R")
-            birthday_strings.append(f"* {discord_user.name} - {timestamp} ({relative_timestamp})")
+            birthday_strings.append(f"* {member.name} - {timestamp} ({relative_timestamp})")
 
         if not birthday_strings:
             return await interaction.followup.send(embed=embed_templates.error_warning("Ingen bursdager"))
@@ -389,7 +430,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(Birthday(bot))

@@ -1,6 +1,3 @@
-from datetime import datetime
-from datetime import timezone
-
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -23,50 +20,69 @@ class Streak(commands.Cog):
 
         self.bot = bot
 
-        self.cursor = self.bot.db_connection.cursor()
-        self.init_db()
-
         # Cache to avoid having to insert to the db for every message
         self.streak_cache = {}
-        self.populate_cache()
 
+    async def cog_load(self):
+        """
+        Set up the database before the cog is used
+        """
+
+        await self.init_db()
+        await self.populate_cache()
         self.streak_check.start()
         self.insert_cache_loop.start()
 
-    def init_db(self):
+    async def init_db(self):
         """
         Create the necessary tables for the streak cog to work
         """
 
-        self.cursor.execute(
-            """
+        await self.bot.db.execute("""
             CREATE TABLE IF NOT EXISTS streak (
                 discord_id BIGINT PRIMARY KEY,
                 streak_start_id TEXT NOT NULL,
-                streak_start_time timestamp NOT NULL,
-                latest_post_time timestamp NOT NULL
+                streak_start_time timestamptz NOT NULL,
+                latest_post_time timestamptz NOT NULL
             );
-            """
-        )
+            """)
+
+        await self.bot.db.execute("""
+            DO $$
+            BEGIN
+                IF (
+                    SELECT data_type
+                    FROM information_schema.columns
+                    WHERE table_schema = current_schema() AND table_name = 'streak' AND column_name = 'latest_post_time'
+                ) = 'timestamp without time zone' THEN
+                    ALTER TABLE streak
+                        ALTER COLUMN streak_start_time TYPE timestamptz
+                            USING streak_start_time AT TIME ZONE 'Europe/Oslo',
+                        ALTER COLUMN latest_post_time TYPE timestamptz
+                            USING latest_post_time AT TIME ZONE 'Europe/Oslo';
+                END IF;
+            END $$;
+            """)
 
     async def cog_unload(self):
+        """
+        Stop the loops and save the cached streaks when the cog is unloaded
+        """
+
         self.bot.logger.info("Unloading cog")
         self.insert_cache_loop.cancel()
         self.streak_check.cancel()
-        self.cursor.close()
+        await self.insert_cache()
 
-    def populate_cache(self):
+    async def populate_cache(self):
         """
         Populate the cache with the current streaks
         """
 
-        self.cursor.execute(
-            """
-            SELECT *
+        streaks = await self.bot.db.fetchall("""
+            SELECT discord_id, streak_start_id, streak_start_time, latest_post_time
             FROM streak;
-            """
-        )
-        streaks = self.cursor.fetchall()
+            """)
 
         for streak in streaks:
             self.streak_cache[streak[0]] = {
@@ -88,9 +104,19 @@ class Streak(commands.Cog):
         if message.author.bot:
             return
 
-        # Cache message stuff
-        if message.author.id in self.streak_cache:
-            self.streak_cache[message.author.id]["latest_post_time"] = message.created_at
+        self.record_message(message)
+
+    def record_message(self, message: discord.Message):
+        """
+        Count a message towards its author's streak
+
+        Parameters
+        ----------
+        message (discord.Message): The message
+        """
+
+        if streak := self.streak_cache.get(message.author.id):
+            streak["latest_post_time"] = max(streak["latest_post_time"], message.created_at)
         else:
             self.streak_cache[message.author.id] = {
                 "first_post_id": f"{message.channel.id}-{message.id}",
@@ -99,6 +125,7 @@ class Streak(commands.Cog):
             }
 
     @tasks.loop(minutes=10)
+    @misc_utils.log_errors
     async def insert_cache_loop(self):
         """
         Inserts cache into the database every 10 minutes
@@ -106,11 +133,35 @@ class Streak(commands.Cog):
 
         await self.insert_cache()
 
-    @insert_cache_loop.after_loop
-    async def on_insert_cache_loop_cancel(self):
-        self.bot.logger.info("Insert cache loop cancelled")
-        if self.insert_cache_loop.is_being_cancelled() and self.streak_cache:
-            await self.insert_cache()
+    @insert_cache_loop.before_loop
+    async def catch_up_on_missed_messages(self):
+        """
+        Count messages sent while the bot was offline, so streaks aren't lost because of downtime.
+        A streak survives the midnight check if its latest post is less than a day old,
+        so only messages since the last midnight can make a difference
+        """
+
+        await self.bot.wait_until_ready()
+
+        since = discord.utils.utcnow().astimezone(self.bot.timezone).replace(hour=0, minute=0, second=0, microsecond=0)
+        counted = 0
+        for guild in self.bot.guilds:
+            channels = [c for c in guild.channels if isinstance(c, discord.abc.Messageable)] + list(guild.threads)
+            for channel in channels:
+                if not channel.permissions_for(guild.me).read_message_history:
+                    continue
+
+                try:
+                    async for message in channel.history(limit=None, after=since):
+                        if not message.author.bot:
+                            self.record_message(message)
+                            counted += 1
+                except discord.HTTPException as e:
+                    self.bot.logger.warning(
+                        f"Could not read the history of {channel} while catching up on streaks: {e}"
+                    )
+
+        self.bot.logger.info(f"Counted {counted} messages since {since} towards streaks")
 
     async def insert_cache(self):
         """
@@ -119,25 +170,32 @@ class Streak(commands.Cog):
 
         self.bot.logger.info("Inserting cache into database")
 
-        # Insert into database
-        for user_id, user_data in self.streak_cache.items():
-            self.cursor.execute(
-                """
-                INSERT INTO streak (discord_id, streak_start_id, streak_start_time, latest_post_time)
-                VALUES (%s, %s, %s, %s)
-                ON CONFLICT (discord_id) DO UPDATE
-                SET latest_post_time = %s;
-                """,
-                (
-                    user_id,
-                    user_data["first_post_id"],
-                    user_data["first_post_time"],
-                    user_data["latest_post_time"],
-                    user_data["latest_post_time"],
-                ),
+        # Snapshot the cache before awaiting, since new messages can change it while we wait for the database
+        rows = [
+            (
+                user_id,
+                user_data["first_post_id"],
+                user_data["first_post_time"],
+                user_data["latest_post_time"],
+                user_data["latest_post_time"],
             )
+            for user_id, user_data in self.streak_cache.items()
+        ]
+        if not rows:
+            return
+
+        await self.bot.db.executemany(
+            """
+            INSERT INTO streak (discord_id, streak_start_id, streak_start_time, latest_post_time)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (discord_id) DO UPDATE
+            SET latest_post_time = %s;
+            """,
+            rows,
+        )
 
     @tasks.loop(time=misc_utils.MIDNIGHT)
+    @misc_utils.log_errors
     async def streak_check(self):
         """
         Check if anyone has lost their streak
@@ -149,19 +207,16 @@ class Streak(commands.Cog):
         if self.streak_cache:
             await self.insert_cache()
 
-        self.cursor.execute(
-            """
+        streaks = await self.bot.db.fetchall("""
             SELECT discord_id, latest_post_time
             FROM streak;
-            """
-        )
-        streaks = self.cursor.fetchall()
+            """)
 
         for streak in streaks:
-            if (datetime.now() - streak[1]).days >= 1:
+            if (discord.utils.utcnow() - streak[1]).days >= 1:
                 self.bot.logger.info(f"User {streak[0]} lost their streak")
                 self.streak_cache.pop(streak[0])
-                self.cursor.execute(
+                await self.bot.db.execute(
                     """
                     DELETE FROM streak
                     WHERE discord_id = %s;
@@ -169,41 +224,36 @@ class Streak(commands.Cog):
                     (streak[0],),
                 )
 
-    @streak_check.after_loop
-    async def on_streak_check_cancel(self):
-        self.bot.logger.info("Streak check loop cancelled")
-        if self.streak_check.is_being_cancelled():
-            await self.streak_check()
-
     streak_group = app_commands.Group(name="streak", description="Snapchat streaks, men for Discord")
 
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 2)
     @streak_group.command(name="se", description="Se din eller en annen brukers streak")
-    async def streak_user(self, interaction: discord.Interaction, bruker: discord.Member | discord.User | None = None):
+    @app_commands.rename(user="bruker")
+    @app_commands.describe(user="Brukeren du vil se streaken til. Standard er deg selv")
+    async def streak_user(self, interaction: discord.Interaction, user: discord.Member | discord.User | None = None):
         """
         Get the current streak for a user
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction
-        bruker (discord.Member | discord.User | None): The user to get the streak for
+        interaction (discord.Interaction): The slash command interaction
+        user (discord.Member | discord.User | None): The user to get the streak for
         """
 
         await interaction.response.defer()
 
-        if not bruker:
-            bruker = interaction.user
+        if not user:
+            user = interaction.user
 
-        self.cursor.execute(
+        streak = await self.bot.db.fetchone(
             """
             SELECT streak_start_id, streak_start_time
             FROM streak
             WHERE discord_id = %s;
             """,
-            (bruker.id,),
+            (user.id,),
         )
-        streak = self.cursor.fetchone()
 
         if not streak:
             return await interaction.followup.send(embed=embed_templates.error_warning("Brukeren har ikke noen streak"))
@@ -217,23 +267,19 @@ class Streak(commands.Cog):
             streak_message = None
 
         if not streak_message:
-            streak_msg_time = datetime.fromtimestamp(streak[2])
-            streak_msg_link_txt = "*Meldingen kunne ikke lastes inn*"
-            streak_msg_link = ""
+            streak_msg_time = streak[1]
+            streak_msg_link = "*Meldingen kunne ikke lastes inn*"
         else:
             streak_msg_time = streak_message.created_at
-            streak_msg_link_txt = "Meldingen"
-            streak_msg_link = streak_message.jump_url
+            streak_msg_link = f"[Meldingen]({streak_message.jump_url})"
 
-        streak_days = (datetime.now(timezone.utc) - streak_msg_time).days
+        streak_days = (discord.utils.utcnow() - streak_msg_time).days
         streak_msg_timestamp = discord.utils.format_dt(streak_msg_time, "F")
 
-        embed = discord.Embed(title="Streak", description=bruker.mention)
-        embed.set_author(name=bruker.name, icon_url=bruker.avatar)
+        embed = discord.Embed(title="Streak", description=user.mention)
+        embed.set_author(name=user.name, icon_url=user.avatar)
         embed.add_field(name="Antall dager", value=streak_days)
-        embed.add_field(
-            name="Startet streaken", value=f"{streak_msg_timestamp}\n[{streak_msg_link_txt}]({streak_msg_link})"
-        )
+        embed.add_field(name="Startet streaken", value=f"{streak_msg_timestamp}\n{streak_msg_link}")
         await interaction.followup.send(embed=embed)
 
     @app_commands.checks.bot_has_permissions(embed_links=True)
@@ -245,25 +291,22 @@ class Streak(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction
+        interaction (discord.Interaction): The slash command interaction
         """
 
         await interaction.response.defer()
 
-        self.cursor.execute(
-            """
+        streaks = await self.bot.db.fetchall("""
             SELECT discord_id, streak_start_time
             FROM streak
             ORDER BY streak_start_time;
-            """
-        )
-        streaks = self.cursor.fetchall()
+            """)
 
         if not streaks:
             return await interaction.followup.send(embed=embed_templates.error_warning("Ingen har noen streak enda"))
 
         streaks_formatted = [
-            f"**#{s[0]+1}** <@{s[1][0]}> - {(datetime.now() - s[1][1]).days} dager" for s in enumerate(streaks)
+            f"**#{s[0]+1}** <@{s[1][0]}> - {(discord.utils.utcnow() - s[1][1]).days} dager" for s in enumerate(streaks)
         ]
 
         paginator = misc_utils.Paginator(streaks_formatted)
@@ -279,7 +322,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(Streak(bot))

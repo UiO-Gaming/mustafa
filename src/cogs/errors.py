@@ -27,7 +27,7 @@ class Errors(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         """
 
         self.bot.logger.info(
@@ -45,8 +45,8 @@ class Errors(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
-        command (app_commands.Command | app_commands.ContextMenu): Command object
+        interaction (discord.Interaction): The slash command interaction
+        command (app_commands.Command | app_commands.ContextMenu): The command that was run
         """
 
         self.bot.logger.info(
@@ -62,15 +62,14 @@ class Errors(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
-        error (commands.CommandError): Eror context object
+        ctx (commands.Context): The command context
+        error (commands.CommandError): The error the command raised
         """
 
-        # Reset cooldown if command throws AttributeError
-        try:
-            self.bot.get_command(f"{ctx.command}").reset_cooldown(ctx)
-        except AttributeError:
-            pass
+        # Let the user retry a command that failed without waiting for its cooldown.
+        # Don't reset it when the error is the cooldown itself, as that would make every other attempt bypass it
+        if ctx.command and not isinstance(error, commands.CommandOnCooldown):
+            ctx.command.reset_cooldown(ctx)
 
         # Ignore command's own error handling
         if hasattr(ctx.command, "on_error"):
@@ -79,9 +78,9 @@ class Errors(commands.Cog):
         error = getattr(error, "original", error)
 
         # Ignored errors
-        ignored_errors = (commands.CommandNotFound, commands.DisabledCommand, commands.CheckFailure)
+        ignored_errors = (commands.CommandNotFound, commands.DisabledCommand)
         if isinstance(error, ignored_errors):
-            self.bot.logger.info("Ignored error", error)
+            self.bot.logger.info(f"Ignored error: {error!r}")
             return
 
         # Errors that should prompt a help message
@@ -89,7 +88,8 @@ class Errors(commands.Cog):
         if isinstance(error, send_help):
             return await ctx.send_help(ctx.command)
 
-        elif isinstance(error, commands.BotMissingPermissions):
+        f = None
+        if isinstance(error, commands.BotMissingPermissions):
             embed = self.error_missing_perms(error.missing_permissions, "Jeg")
         elif isinstance(error, commands.MissingPermissions):
             embed = self.error_missing_perms(error.missing_permissions, "Du")
@@ -101,16 +101,12 @@ class Errors(commands.Cog):
             )
         elif isinstance(error, commands.NoPrivateMessage):
             embed = embed_templates.error_warning("Denne kommandoen kan bare utføres it servere")
+        elif isinstance(error, commands.CheckFailure):
+            return
         else:
             embed = embed_templates.error_fatal("En ukjent feil oppstod!")
             f = discord.File("./src/assets/edb.png")
             embed.set_image(url="attachment://edb.png")
-
-        # Yeah, this fucking sucks but I want my beautiful edb picture :_;
-        try:
-            f
-        except NameError:
-            f = None
 
         try:
             await ctx.reply(embed=embed, file=f)
@@ -130,15 +126,17 @@ class Errors(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
-        error (app_commands.AppCommandError): Eror context object
+        interaction (discord.Interaction): The slash command interaction
+        error (app_commands.AppCommandError): The error the command raised
         """
 
-        await interaction.response.defer()
+        if not interaction.response.is_done():
+            await interaction.response.defer()
 
         # Log command usage, just in case
         await self.on_app_command_completion(interaction, interaction.command)
 
+        files = []
         if isinstance(error, app_commands.BotMissingPermissions):
             embed = self.error_missing_perms(error.missing_permissions, "Jeg")
         elif isinstance(error, app_commands.MissingPermissions):
@@ -149,17 +147,11 @@ class Errors(commands.Cog):
             )
         else:
             embed = embed_templates.error_fatal("En ukjent feil oppstod!")
-            f = discord.File("./src/assets/edb.png")
+            files.append(discord.File("./src/assets/edb.png"))
             embed.set_image(url="attachment://edb.png")
 
-        # Yeah, this fucking sucks but I want my beautiful edb picture :_;
         try:
-            f
-        except NameError:
-            f = None
-
-        try:
-            await interaction.followup.send(embed=embed, file=f)
+            await interaction.followup.send(embed=embed, files=files)
         except discord.errors.Forbidden:
             self.bot.logger.warning("Could not send error message to user")
         except app_commands.BotMissingPermissions:
@@ -195,7 +187,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(Errors(bot))

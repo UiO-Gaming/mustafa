@@ -19,8 +19,8 @@ class Info(commands.Cog):
 
         self.bot = bot
 
-    guild_group = app_commands.Group(name="guild", description="Se ting om serveren")
-    user_group = app_commands.Group(name="bruker", description="Se ting om brukeren")
+    guild_group = app_commands.Group(name="guild", description="Se ting om serveren", guild_only=True)
+    user_group = app_commands.Group(name="bruker", description="Se ting om brukeren", guild_only=True)
 
     def construct_role_string(self, roles: list[discord.Role]) -> str:
         """
@@ -31,7 +31,7 @@ class Info(commands.Cog):
         roles (list[discord.Role]): List of roles
 
         Returns
-        -------
+        ----------
         (str): String of roles
         """
 
@@ -49,11 +49,11 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The interaction that triggered this
         join_method (callable): Function to join the boosters with
 
         Returns
-        -------
+        ----------
         (str): String of boosters
         """
 
@@ -77,7 +77,7 @@ class Info(commands.Cog):
         members (list[discord.Member]): List of members
 
         Returns
-        -------
+        ----------
         (str): String of members
         """
 
@@ -88,7 +88,6 @@ class Info(commands.Cog):
 
         return ", ".join(members)
 
-    @app_commands.guild_only()
     @app_commands.checks.bot_has_permissions(embed_links=True, external_emojis=True)
     @app_commands.checks.cooldown(1, 2)
     @guild_group.command(name="info", description="Hent informasjon om en server")
@@ -98,7 +97,7 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         # Days since guild was created
@@ -194,7 +193,7 @@ class Info(commands.Cog):
             "low": "e-post",
             "medium": "e-post, registrert i 5 min",
             "high": "e-post, registrert i 5 min, medlem i 10 min",
-            "extreme": "telefon",
+            "highest": "telefon",
         }
         verification = verification_level[str(interaction.guild.verification_level)]
 
@@ -245,7 +244,6 @@ class Info(commands.Cog):
             embed.add_field(name="Bilder", value=photos_string)
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.guild_only()
     @app_commands.checks.bot_has_permissions(embed_links=True, attach_files=True)
     @app_commands.checks.cooldown(1, 2)
     @guild_group.command(name="roller", description="Se rollene på serveren")
@@ -255,21 +253,20 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         roles = self.construct_role_string(interaction.guild.roles)
 
         # IF roles list is longer than 2048, create text file and send it
         if len(roles) > 2048:
-            await discord_utils.send_as_txt_file(interaction, roles, f"./assets/temp/{interaction.guild.id}_roles.txt")
+            await discord_utils.send_as_txt_file(interaction, roles, f"{interaction.guild.id}_roles.txt")
         else:
             embed = discord.Embed(color=interaction.guild.me.color, description=roles)
             embed.set_author(name=f"Roller ({len(interaction.guild.roles)})", icon_url=interaction.guild.icon)
             embed.set_footer(text=interaction.guild.name, icon_url=interaction.guild.icon)
             await interaction.response.send_message(embed=embed)
 
-    @app_commands.guild_only()
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 2)
     @guild_group.command(name="boosters", description="Se boostere på serveren")
@@ -279,7 +276,7 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         if len(interaction.guild.premium_subscribers) == 0:
@@ -295,7 +292,6 @@ class Info(commands.Cog):
         embed.set_footer(text=interaction.guild.name, icon_url=interaction.guild.icon)
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.guild_only()
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 2)
     @guild_group.command(name="ikon", description="Hent serverens ikon")
@@ -305,7 +301,7 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         embed = discord.Embed(color=interaction.guild.me.color, description=f"[Lenke]({interaction.guild.icon})")
@@ -313,7 +309,6 @@ class Info(commands.Cog):
         embed.set_image(url=interaction.guild.icon)
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.guild_only()
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 2)
     @guild_group.command(name="splash", description="Hent serverens splash (bakgrunnsbilde på invitasjonsside)")
@@ -323,7 +318,7 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         if not interaction.guild.splash:
@@ -335,7 +330,6 @@ class Info(commands.Cog):
         embed.set_image(url=interaction.guild.splash)
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.guild_only()
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 2)
     @guild_group.command(name="banner", description="Hen serverens banner")
@@ -345,7 +339,7 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         if not interaction.guild.banner:
@@ -357,111 +351,113 @@ class Info(commands.Cog):
         embed.set_image(url=interaction.guild.banner)
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.guild_only()
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 2)
     @guild_group.command(name="rolle", description="Hent informasjon om en rolle på serveren")
-    async def guild_role(self, interaction: discord.Interaction, rolle: discord.Role):
+    @app_commands.rename(role="rolle")
+    @app_commands.describe(role="Rollen du vil se informasjon om")
+    async def guild_role(self, interaction: discord.Interaction, role: discord.Role):
         """
         Get information about a role
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
-        rolle (discord.Role): Role to fetch information about
+        interaction (discord.Interaction): The slash command interaction
+        role (discord.Role): Role to fetch information about
         """
 
-        if rolle.name == "@everyone":
+        if role.name == "@everyone":
             embed = embed_templates.error_warning("Skriv inn en annen rolle enn `@everyone`")
             return await interaction.response.send_message(embed=embed)
 
         # Timestamp and days since creation
-        created_at_timestamp = discord.utils.format_dt(rolle.created_at, style="F")
-        since_created_days = (interaction.created_at - rolle.created_at).days
+        created_at_timestamp = discord.utils.format_dt(role.created_at, style="F")
+        since_created_days = (interaction.created_at - role.created_at).days
 
         # List of members with the role
-        members = self.construct_member_string(rolle.members)
+        members = self.construct_member_string(role.members)
         members = members if len(members) < 1024 else "For mange medlemmer for å vise her"
 
         # List of permissions
-        permissions = ", ".join([permission for permission, value in iter(rolle.permissions) if value is True])
+        permissions = ", ".join([permission for permission, value in iter(role.permissions) if value is True])
 
-        embed = discord.Embed(title=rolle.name, description=f"{rolle.mention}\n**ID:** {rolle.id}", color=rolle.color)
-        embed.set_author(name=rolle.guild.name, icon_url=rolle.guild.icon)
-        embed.add_field(name="Fargekode", value=str(rolle.color))
+        embed = discord.Embed(title=role.name, description=f"{role.mention}\n**ID:** {role.id}", color=role.color)
+        embed.set_author(name=role.guild.name, icon_url=role.guild.icon)
+        embed.add_field(name="Fargekode", value=str(role.color))
         embed.add_field(
             name="Opprettet",
             value=f"{created_at_timestamp}\n{since_created_days} "
             + f'{"dager" if since_created_days != 1 else "dag"} siden',
         )
-        embed.add_field(name="Posisjon", value=rolle.position)
-        embed.add_field(name="Nevnbar", value="Ja" if rolle.mentionable else "Nei")
-        embed.add_field(name="Vises separat i medlemsliste", value="Ja" if rolle.hoist else "Nei")
+        embed.add_field(name="Posisjon", value=role.position)
+        embed.add_field(name="Nevnbar", value="Ja" if role.mentionable else "Nei")
+        embed.add_field(name="Vises separat i medlemsliste", value="Ja" if role.hoist else "Nei")
         if permissions:
             embed.add_field(name="Tillatelser", value=permissions, inline=False)
-        embed.add_field(name=f"Brukere med rollen ({len(rolle.members)})", value=members, inline=False)
+        embed.add_field(name=f"Brukere med rollen ({len(role.members)})", value=members, inline=False)
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.guild_only()
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 2)
     @guild_group.command(name="tekstkanal", description="Hent informasjon om en tekstkanal")
-    async def guild_text_channel(self, interaction: discord.Interaction, kanal: discord.TextChannel):
+    @app_commands.rename(channel="kanal")
+    @app_commands.describe(channel="Tekstkanalen du vil se informasjon om")
+    async def guild_text_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
         """
         Get information about a text channel
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
-        kanal (discord.TextChannel): Text channel to fetch information about
+        interaction (discord.Interaction): The slash command interaction
+        channel (discord.TextChannel): Text channel to fetch information about
         """
 
-        members = self.construct_member_string(kanal.members)
+        members = self.construct_member_string(channel.members)
         if len(members) > 1024:
             members = "For mange for å vise her"
 
         embed = discord.Embed(
-            color=interaction.guild.me.color, title=kanal.name, description=f"{kanal.mention}\nID: {kanal.id}"
+            color=interaction.guild.me.color, title=channel.name, description=f"{channel.mention}\nID: {channel.id}"
         )
-        embed.set_author(name=kanal.guild.name, icon_url=kanal.guild.icon)
-        embed.add_field(name="Beskrivelse", value=kanal.topic if kanal.topic else "**Ingen**", inline=False)
-        embed.add_field(name="Opprettet", value=discord.utils.format_dt(kanal.created_at, style="F"))
-        embed.add_field(name="NSFW", value="Ja" if kanal.is_nsfw() else "Nei")
+        embed.set_author(name=channel.guild.name, icon_url=channel.guild.icon)
+        embed.add_field(name="Beskrivelse", value=channel.topic if channel.topic else "**Ingen**", inline=False)
+        embed.add_field(name="Opprettet", value=discord.utils.format_dt(channel.created_at, style="F"))
+        embed.add_field(name="NSFW", value="Ja" if channel.is_nsfw() else "Nei")
         embed.add_field(
-            name="Saktemodus", value=f"Ja ({kanal.slowmode_delay} sekunder)" if kanal.slowmode_delay else "Nei"
+            name="Saktemodus", value=f"Ja ({channel.slowmode_delay} sekunder)" if channel.slowmode_delay else "Nei"
         )
-        if kanal.category:
-            embed.add_field(name="Kategori", value=kanal.category.name)
-        embed.add_field(name=f"Antall med tilgang ({len(kanal.members)})", value=members)
+        if channel.category:
+            embed.add_field(name="Kategori", value=channel.category.name)
+        embed.add_field(name=f"Antall med tilgang ({len(channel.members)})", value=members)
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.guild_only()
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 2)
     @guild_group.command(name="talekanal", description="Hent informasjon om en talekanal")
-    async def guild_voice_channel(self, interaction: discord.Interaction, kanal: discord.VoiceChannel):
+    @app_commands.rename(channel="kanal")
+    @app_commands.describe(channel="Talekanalen du vil se informasjon om")
+    async def guild_voice_channel(self, interaction: discord.Interaction, channel: discord.VoiceChannel):
         """
         Get information about a voice channel
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
-        kanal (discord.VoiceChannel): Voice channel to fetch information about
+        interaction (discord.Interaction): The slash command interaction
+        channel (discord.VoiceChannel): Voice channel to fetch information about
         """
 
-        embed = discord.Embed(color=interaction.guild.me.color, title=kanal.name, description=f"ID: {kanal.id}")
-        embed.set_author(name=kanal.guild.name, icon_url=kanal.guild.icon)
-        embed.add_field(name="Opprettet", value=discord.utils.format_dt(kanal.created_at, style="F"))
-        embed.add_field(name="Bitrate", value=f"{int(kanal.bitrate / 1000)}kbps")
+        embed = discord.Embed(color=interaction.guild.me.color, title=channel.name, description=f"ID: {channel.id}")
+        embed.set_author(name=channel.guild.name, icon_url=channel.guild.icon)
+        embed.add_field(name="Opprettet", value=discord.utils.format_dt(channel.created_at, style="F"))
+        embed.add_field(name="Bitrate", value=f"{int(channel.bitrate / 1000)}kbps")
         embed.add_field(
-            name="Maksgrense", value=f"{kanal.user_limit} personer" if kanal.user_limit != 0 else "∞ personer"
+            name="Maksgrense", value=f"{channel.user_limit} personer" if channel.user_limit != 0 else "∞ personer"
         )
-        if kanal.category:
-            embed.add_field(name="Kategori", value=kanal.category.name)
-        embed.add_field(name="Antall koblet til", value=len(kanal.members))
+        if channel.category:
+            embed.add_field(name="Kategori", value=channel.category.name)
+        embed.add_field(name="Antall koblet til", value=len(channel.members))
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.guild_only()
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @guild_group.command(name="topproller", description="Viser rollene med flest brukere i kronologisk rekkefølge")
@@ -471,7 +467,7 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         roles = sorted(
@@ -487,17 +483,18 @@ class Info(commands.Cog):
         )
         await interaction.response.send_message(embed=embed, view=view)
 
-    @commands.guild_only()
+    @app_commands.guild_only()
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 2)
     @app_commands.command(name="emoji", description="Hent informasjon om en emoji i serveren")
+    @app_commands.describe(emoji="Emojien du vil se informasjon om")
     async def emoji(self, interaction: discord.Interaction, emoji: str):
         """
         Get information about an emoji in the server
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         emoji (discord.Emoji): Emoji to fetch information about
         """
 
@@ -507,8 +504,9 @@ class Info(commands.Cog):
             embed = embed_templates.error_warning("Denne kommandoen støtter bare serveremoji")
             return await interaction.response.send_message(embed=embed)
 
-        emoji = discord.utils.get(interaction.guild.emojis, name=emoji.name)
-        if not emoji:
+        try:
+            emoji = await interaction.guild.fetch_emoji(emoji.id)
+        except discord.NotFound:
             embed = embed_templates.error_warning("Emoji kunne ikke hentes. Den er muligens fra en annen server")
             return await interaction.response.send_message(embed=embed)
 
@@ -536,7 +534,7 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Command context object
+        ctx (commands.Context): The command context
         """
 
         if ctx.message.type != discord.MessageType.reply:
@@ -552,9 +550,14 @@ class Info(commands.Cog):
                 embed = embed_templates.error_warning("Kunne ikke hente meldingen du svarte på")
                 return await ctx.reply(embed=embed)
 
-        sticker = await replied_message.guild.fetch_sticker(replied_message.stickers[0].id)
-        if not sticker:
-            embed = embed_templates.error_warning("Sticker kunne ikke hentes")
+        if not replied_message.stickers:
+            embed = embed_templates.error_warning("Meldingen du svarte på inneholder ikke en sticker")
+            return await ctx.reply(embed=embed)
+
+        try:
+            sticker = await replied_message.guild.fetch_sticker(replied_message.stickers[0].id)
+        except discord.NotFound:
+            embed = embed_templates.error_warning("Sticker kunne ikke hentes. Den er muligens fra en annen server")
             return await ctx.reply(embed=embed)
 
         embed = discord.Embed(title=sticker.name, description=f"ID: {sticker.id}\n\n{sticker.description}")
@@ -570,7 +573,6 @@ class Info(commands.Cog):
         name="eldst", description="Viser de eldste medlemmene på serveren", parent=guild_group
     )
 
-    @commands.guild_only()
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @guild_oldest_group.command(
@@ -582,7 +584,7 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         # Sort members by creation date
@@ -603,7 +605,6 @@ class Info(commands.Cog):
         )
         await interaction.response.send_message(embed=embed, view=view)
 
-    @commands.guild_only()
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @guild_oldest_group.command(
@@ -615,7 +616,7 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         # Sort members by creation date
@@ -635,53 +636,52 @@ class Info(commands.Cog):
         )
         await interaction.response.send_message(embed=embed, view=view)
 
-    @app_commands.guild_only()
     @app_commands.checks.bot_has_permissions(embed_links=True, external_emojis=True)
     @app_commands.checks.cooldown(1, 2)
     @user_group.command(name="info", description="Hent informasjon om en bruker")
-    async def user_info(self, interaction: discord.Interaction, *, bruker: discord.Member | None = None):
+    @app_commands.rename(user="bruker")
+    @app_commands.describe(user="Brukeren du vil se informasjon om. Standard er deg selv")
+    async def user_info(self, interaction: discord.Interaction, *, user: discord.Member | None = None):
         """
         Get information about a user
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
-        bruker (discord.Member, optional): User to get information about. Defaults to None (invoker).
+        interaction (discord.Interaction): The slash command interaction
+        user (discord.Member | None): The user to get information about. Defaults to the invoking user
         """
 
-        if not bruker:
-            bruker = interaction.user
+        if not user:
+            user = interaction.user
 
         # Get device(s) that is currently used by the user
         app = ""
-        if str(bruker.mobile_status) != "offline":
+        if str(user.mobile_status) != "offline":
             app += "📱 "
-        if str(bruker.web_status) != "offline":
+        if str(user.web_status) != "offline":
             app += "🌐 "
-        if str(bruker.desktop_status) != "offline":
+        if str(user.desktop_status) != "offline":
             app += "💻"
 
         # Get index of join, creation and/or boost date in comparison to other users in the guild
-        join_index = sorted(interaction.guild.members, key=lambda m: m.joined_at).index(bruker) + 1
-        creation_index = sorted(interaction.guild.members, key=lambda m: m.created_at).index(bruker) + 1
-        if bruker.premium_since:
-            premium_index = (
-                sorted(interaction.guild.premium_subscribers, key=lambda m: m.premium_since).index(bruker) + 1
-            )
+        join_index = sorted(interaction.guild.members, key=lambda m: m.joined_at).index(user) + 1
+        creation_index = sorted(interaction.guild.members, key=lambda m: m.created_at).index(user) + 1
+        if user.premium_since:
+            premium_index = sorted(interaction.guild.premium_subscribers, key=lambda m: m.premium_since).index(user) + 1
 
         #  Creation/join date & days ago
-        created_timestamp = discord.utils.format_dt(bruker.created_at, style="F")
-        joined_timestamp = discord.utils.format_dt(bruker.joined_at, style="F")
-        joined_days = (interaction.created_at - bruker.joined_at).days
-        created_days = (interaction.created_at - bruker.created_at).days
+        created_timestamp = discord.utils.format_dt(user.created_at, style="F")
+        joined_timestamp = discord.utils.format_dt(user.joined_at, style="F")
+        joined_days = (interaction.created_at - user.joined_at).days
+        created_days = (interaction.created_at - user.created_at).days
 
         # Boost date & days ago
-        if bruker.premium_since:
-            premium_since = discord.utils.format_dt(bruker.premium_since, style="F")
-            premium_since_days = (interaction.created_at - bruker.premium_since).days
+        if user.premium_since:
+            premium_since = discord.utils.format_dt(user.premium_since, style="F")
+            premium_since_days = (interaction.created_at - user.premium_since).days
 
         # Get user roles
-        roles = self.construct_role_string(bruker.roles)
+        roles = self.construct_role_string(user.roles)
 
         roles = (
             roles
@@ -695,14 +695,14 @@ class Info(commands.Cog):
             "dnd": f'{self.bot.emoji["dnd"]} Ikke forstyrr',
             "offline": f'{self.bot.emoji["offline"]} Frakoblet',
         }
-        status = statuses[str(bruker.status)]
+        status = statuses[str(user.status)]
 
-        embed = discord.Embed(color=bruker.color, description=f"{bruker.mention}\nID: {bruker.id}\n{status}\n{app}")
-        if bruker.display_name == bruker.name:
-            embed.set_author(name=bruker.name, icon_url=bruker.display_avatar)
+        embed = discord.Embed(color=user.color, description=f"{user.mention}\nID: {user.id}\n{status}\n{app}")
+        if user.display_name == user.name:
+            embed.set_author(name=user.name, icon_url=user.display_avatar)
         else:
-            embed.set_author(name=f"{bruker.name} | {bruker.display_name}", icon_url=bruker.display_avatar)
-        embed.set_thumbnail(url=bruker.display_avatar)
+            embed.set_author(name=f"{user.name} | {user.display_name}", icon_url=user.display_avatar)
+        embed.set_thumbnail(url=user.display_avatar)
         embed.add_field(
             name="Opprettet",
             value=f"{created_timestamp}\n{created_days} " + f'{"dag" if created_days == 1 else "dager"} siden',
@@ -711,7 +711,7 @@ class Info(commands.Cog):
             name="Ble med i serveren",
             value=f"{joined_timestamp}\n{joined_days} " + f'{"dag" if joined_days == 1 else "dager"} siden',
         )
-        if bruker.premium_since:
+        if user.premium_since:
             embed.add_field(
                 name="Boost",
                 value=f"{premium_since}\n{premium_since_days} "
@@ -719,100 +719,104 @@ class Info(commands.Cog):
                 + f"Booster #{premium_index} av serveren",
                 inline=False,
             )
-        embed.add_field(name=f"Roller ({len(bruker.roles)})", value=roles, inline=False)
+        embed.add_field(name=f"Roller ({len(user.roles)})", value=roles, inline=False)
         embed.set_footer(text=f"#{join_index} Medlem av serveren | #{creation_index} Eldste brukeren på serveren")
 
         # Playing activity
-        if bruker.activities:
+        if user.activities:
             games = ""
-            for activity in bruker.activities:
+            for activity in user.activities:
                 games += f"{activity.name}\n"
             if games:
                 embed.add_field(name="Spiller", value=games, inline=False)
 
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.guild_only()
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 2)
     @user_group.command(name="roller", description="Hent roller til en bruker")
-    async def user_roles(self, interaction: discord.Interaction, bruker: discord.Member | None = None):
+    @app_commands.rename(user="bruker")
+    @app_commands.describe(user="Brukeren du vil se rollene til. Standard er deg selv")
+    async def user_roles(self, interaction: discord.Interaction, user: discord.Member | None = None):
         """
         Get roles of a user
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
-        bruker (discord.Member, optional): User to get roles of. Defaults to None (invoker).
+        interaction (discord.Interaction): The slash command interaction
+        user (discord.Member | None): The user to get the roles of. Defaults to the invoking user
         """
 
-        if not bruker:
-            bruker = interaction.user
+        if not user:
+            user = interaction.user
 
-        roles = self.construct_role_string(bruker.roles)
+        roles = self.construct_role_string(user.roles)
 
         # If the list of roles is too long, send it as a file
         if len(roles) > 2048:
             await discord_utils.send_as_txt_file(
-                interaction, roles, f"./assets/temp/{interaction.guild.id}_{interaction.user.id}_roles.txt"
+                interaction, roles, f"{interaction.guild.id}_{interaction.user.id}_roles.txt"
             )
         else:
-            embed = discord.Embed(color=bruker.color, description=roles)
-            embed.set_author(name=f"Roller ({len(bruker.roles)})", icon_url=bruker.display_avatar)
-            embed.set_footer(text=bruker.name, icon_url=bruker.display_avatar)
+            embed = discord.Embed(color=user.color, description=roles)
+            embed.set_author(name=f"Roller ({len(user.roles)})", icon_url=user.display_avatar)
+            embed.set_footer(text=user.name, icon_url=user.display_avatar)
             await interaction.response.send_message(embed=embed)
 
-    @app_commands.guild_only()
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 2)
     @user_group.command(name="manglenderoller", description="Se hvilke roller en bruker ikke har i en guild")
-    async def user_missing_roles(self, interaction: discord.Interaction, bruker: discord.Member | None = None):
+    @app_commands.rename(user="bruker")
+    @app_commands.describe(user="Brukeren du vil se manglende roller for. Standard er deg selv")
+    async def user_missing_roles(self, interaction: discord.Interaction, user: discord.Member | None = None):
         """
         See which roles a user does not have in a guild
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
-        bruker (discord.Member, optional): User to get roles of. Defaults to None (invoker).
+        interaction (discord.Interaction): The slash command interaction
+        user (discord.Member | None): The user to get the missing roles of. Defaults to the invoking user
         """
 
-        if not bruker:
-            bruker = interaction.user
+        if not user:
+            user = interaction.user
 
-        missing_roles = set(interaction.guild.roles) - set(bruker.roles)
+        missing_roles = set(interaction.guild.roles) - set(user.roles)
 
         roles = self.construct_role_string(missing_roles)
 
         # If the list of roles is too long, send it as a file
         if len(roles) > 2048:
             await discord_utils.send_as_txt_file(
-                interaction, roles, f"./assets/temp/{interaction.guild.id}_{interaction.user.id}_missing_roles.txt"
+                interaction, roles, f"{interaction.guild.id}_{interaction.user.id}_missing_roles.txt"
             )
         else:
-            embed = discord.Embed(color=bruker.color, description=roles)
-            embed.set_author(name=f"Manglende roller ({len(missing_roles)})", icon_url=bruker.display_avatar)
-            embed.set_footer(text=bruker.name, icon_url=bruker.display_avatar)
+            embed = discord.Embed(color=user.color, description=roles)
+            embed.set_author(name=f"Manglende roller ({len(missing_roles)})", icon_url=user.display_avatar)
+            embed.set_footer(text=user.name, icon_url=user.display_avatar)
             await interaction.response.send_message(embed=embed)
 
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 2)
     @user_group.command(name="avatar", description="Hent avatar til en bruker")
-    async def user_avatar(self, interaction: discord.Interaction, bruker: discord.User | discord.Member | None = None):
+    @app_commands.rename(user="bruker")
+    @app_commands.describe(user="Brukeren du vil se avataren til. Standard er deg selv")
+    async def user_avatar(self, interaction: discord.Interaction, user: discord.User | discord.Member | None = None):
         """
         Get avatar of a user
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
-        bruker (discord.User, optional): User to get avatar of. Defaults to None (invoker).
+        interaction (discord.Interaction): The slash command interaction
+        user (discord.User | None): The user to get the avatar of. Defaults to the invoking user
         """
 
-        if not bruker:
-            bruker = interaction.user
+        if not user:
+            user = interaction.user
 
-        embed = discord.Embed(color=bruker.color, description=f"[Lenke]({bruker.display_avatar})")
-        embed.set_author(name=bruker.name, icon_url=bruker.display_avatar)
-        embed.set_image(url=bruker.display_avatar)
+        embed = discord.Embed(color=user.color, description=f"[Lenke]({user.display_avatar})")
+        embed.set_author(name=user.name, icon_url=user.display_avatar)
+        embed.set_image(url=user.display_avatar)
         await interaction.response.send_message(embed=embed)
 
 
@@ -822,7 +826,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(Info(bot))

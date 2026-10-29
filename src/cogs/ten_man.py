@@ -1,12 +1,9 @@
 """
-WARNING:
-This code is an absolute hot steaming pile of garbage.
-My excuse is just wanting things to work, for the most part, for now.
-Below you will see a lot of stupid shit. Pls ignore
+10 man lobbies. The host opens a lobby and picks two team leaders, who take turns picking players for their teams.
+Every step happens in the lobby message, which is edited as the flow goes on
 """
 
 import random
-from datetime import datetime
 from datetime import timedelta
 from typing import override
 
@@ -14,10 +11,11 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from cogs.utils import discord_utils
 from cogs.utils import embed_templates
-from cogs.utils.discord_utils import Lobby
-from cogs.utils.discord_utils import LobbyView
-from cogs.utils.discord_utils import TempVoiceHelper
+
+# Seconds without any interaction before the menus and buttons are disabled
+SELECTION_TIMEOUT = 300
 
 
 class TenMan(commands.Cog):
@@ -31,7 +29,7 @@ class TenMan(commands.Cog):
         """
 
         self.bot = bot
-        self.active_lobbies = {}
+        self.active_lobbies: dict[int, discord_utils.Lobby] = {}
 
     ten_man_group = app_commands.Group(name="10man", description="For planlegging og arrangering av 10 mans")
 
@@ -44,55 +42,29 @@ class TenMan(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
-        if lobby := self.active_lobbies.get(str(interaction.user.id), None):
-            if lobby.ends < datetime.now():
-                self.active_lobbies.pop(str(interaction.user.id))
-            else:
-                return await interaction.response.send_message(
-                    embed=embed_templates.error_warning(
-                        "Du hoster allerede en lobby",
-                    )
-                )
-
-        for lobby in self.active_lobbies.values():
-            if interaction.user.id in lobby.players:
-                return await interaction.response.send_message(
-                    embed=embed_templates.error_warning(
-                        "Du er allerede i en lobby",
-                    )
-                )
-
-        self.active_lobbies[str(interaction.user.id)] = Lobby(
-            host=interaction.user,
-            players=[interaction.user],
-            ends=datetime.now() + timedelta(minutes=30),
-            kicked_players=[],
-        )
-
-        time_left = discord.utils.format_dt(self.active_lobbies[str(interaction.user.id)].ends, "R")
-
-        embed = discord.Embed(
-            title="10 Man Lobby",
-            description=f"Lobbyen stenger {time_left}. Bli med innen da!",
-            color=interaction.user.color,
-        )
-        embed.set_author(name=interaction.user.global_name, icon_url=interaction.user.avatar)
-        embed.add_field(name="Spillere", value=f"* {interaction.user.mention}", inline=False)
-        await interaction.response.send_message(
-            embed=embed, view=TenManView(self.active_lobbies[str(interaction.user.id)], self.bot)
+        await discord_utils.open_lobby(
+            interaction, self.active_lobbies, TenManView, "10 Man Lobby", timedelta(minutes=30)
         )
 
 
-class TenManView(LobbyView):
-    def __init__(self, lobby: Lobby, bot: commands.Bot):
-        super().__init__(lobby, bot)
+class TenManView(discord_utils.LobbyView):
+    """The lobby players join before the teams are picked"""
 
     @discord.ui.button(label="Start", style=discord.ButtonStyle.green)
     @override
     async def start_lobby(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """
+        Close the lobby and let the host pick team leaders
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): The interaction that triggered this
+        button (discord.ui.Button): The button that was pressed
+        """
+
         if interaction.user != self.lobby.host:
             embed = embed_templates.error_warning("Bare hosten kan starte")
             return await interaction.response.send_message(embed=embed, ephemeral=True, delete_after=10)
@@ -103,209 +75,369 @@ class TenManView(LobbyView):
 
         await self.end_lobby()
 
-        embed = interaction.message.embeds[0]
-        embed.description = "Lobby startet! Dere skal nå velge lagledere"
-        await interaction.message.edit(embed=embed, view=self)
-
-        embed = discord.Embed(title="10 Man Lobby - Velg lagledere")
-        await interaction.response.send_message(embed=embed, view=TeamLeaderView(self.lobby, self.bot))
+        view = TeamLeaderView(self.lobby, self.bot, self.message)
+        await interaction.response.edit_message(embed=view.embed(), view=view)
 
 
-# ------------------------------------------------------------------------------
+class TeamDraft:
+    """Two team leaders taking turns picking players for their teams"""
+
+    def __init__(self, leaders: list[discord.Member], players: list[discord.Member]):
+        """
+        Parameters
+        ----------
+        leaders (list[discord.Member]): The two team leaders
+        players (list[discord.Member]): The players to pick from
+        """
+
+        self.teams = [[leaders[0]], [leaders[1]]]
+        self.remaining = players
+        self.turn = random.randint(0, 1)
+
+    @property
+    def leaders(self) -> list[discord.Member]:
+        """
+        Returns
+        ----------
+        (list[discord.Member]): The two team leaders
+        """
+
+        return [team[0] for team in self.teams]
+
+    @property
+    def done(self) -> bool:
+        """
+        Returns
+        ----------
+        (bool): Whether every player has been picked
+        """
+
+        return not self.remaining
+
+    def pick(self, player_id: int):
+        """
+        Move a player to the team whose turn it is, and give the turn to the other team
+
+        Parameters
+        ----------
+        player_id (int): The Discord ID of the picked player
+        """
+
+        player = next(player for player in self.remaining if player.id == player_id)
+        self.remaining.remove(player)
+        self.teams[self.turn].append(player)
+        self.turn = 1 - self.turn
+
+    def embed(self) -> discord.Embed:
+        """
+        Returns
+        ----------
+        (discord.Embed): The teams so far, and whose turn it is
+        """
+
+        if self.done:
+            embed = discord.Embed(title="10 Man - Lagene er klare", description="Lagene er valgt!")
+        else:
+            embed = discord.Embed(
+                title="10 Man - Velg spillere", description=f"Det er {self.leaders[self.turn].mention} sin tur"
+            )
+
+        for i, team in enumerate(self.teams):
+            embed.add_field(
+                name=f"Lag {i + 1}", value="\n".join(f"* {player.mention}" for player in team), inline=False
+            )
+
+        return embed
 
 
-class TeamLeaderView(discord.ui.View):
-    def __init__(self, lobby: Lobby, bot: commands.Bot):
-        super().__init__(timeout=15)
+class StageView(discord.ui.View):
+    """A step of the flow after the lobby has closed"""
+
+    def __init__(self, lobby: discord_utils.Lobby, bot: commands.Bot, message: discord.PartialMessage):
+        """
+        Parameters
+        ----------
+        lobby (Lobby): The closed lobby
+        bot (commands.Bot): The bot instance
+        message (discord.PartialMessage): The lobby message, edited with the bot's own token on timeout
+        """
+
+        super().__init__(timeout=SELECTION_TIMEOUT)
         self.lobby = lobby
         self.bot = bot
+        self.message = message
 
-        self.add_item(TeamLeaderSelectMenu(self))
+    async def deny(self, interaction: discord.Interaction, reason: str) -> bool:
+        """
+        Tell the user why they can't use this step
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): The interaction that triggered this
+        reason (str): Why the user was denied
+
+        Returns
+        ----------
+        (bool): Always False, so it can be returned from interaction_check
+        """
+
+        embed = embed_templates.error_warning(reason)
+        await interaction.response.send_message(embed=embed, ephemeral=True, delete_after=10)
+        return False
 
     async def on_timeout(self):
-        self.bot.logger.info("TeamLeaderView timed out")
-        self.disable_interaction()
+        """
+        Disable the step's menus and buttons after SELECTION_TIMEOUT seconds without interaction
+        """
 
-    def disable_interaction(self):
-        self.bot.logger.info("TeamLeaderView disabled")
         for item in self.children:
             item.disabled = True
 
+        try:
+            await self.message.edit(view=self)
+        except discord.HTTPException:
+            pass  # The message has been deleted
+
     async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item):
-        self.bot.logger.error("TeamLeaderView error", exc_info=error)
+        """
+        Log the error and tell the user something went wrong
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): The interaction that triggered this
+        error (Exception): The error that was raised
+        item (discord.ui.Item): The menu or button that was used
+        """
+
+        self.bot.logger.error(f"{type(self).__name__} error", exc_info=error)
+
         embed = embed_templates.error_fatal("Oopsie woopsie, we made a fucky wucky!")
-        await interaction.response.send_message(embed=embed, delete_after=10)
+        if interaction.response.is_done():
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        else:
+            await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
-class TeamLeaderSelectMenu(discord.ui.Select):
-    def __init__(self, parent_view: TeamLeaderView):
-        self.parent_view = parent_view
+class TeamLeaderView(StageView):
+    """The host picks two team leaders"""
+
+    def __init__(self, lobby: discord_utils.Lobby, bot: commands.Bot, message: discord.PartialMessage):
+        """
+        Parameters
+        ----------
+        lobby (Lobby): The closed lobby
+        bot (commands.Bot): The bot instance
+        message (discord.PartialMessage): The lobby message
+        """
+
+        super().__init__(lobby, bot, message)
+        self.add_item(TeamLeaderSelect(lobby.players))
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        """
+        Only let the host pick team leaders
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): The interaction that triggered this
+
+        Returns
+        ----------
+        (bool): Whether the user may use the menu
+        """
+
+        if interaction.user != self.lobby.host:
+            return await self.deny(interaction, "Bare hosten kan velge lagledere")
+        return True
+
+    def embed(self) -> discord.Embed:
+        """
+        Returns
+        ----------
+        (discord.Embed): The players to pick team leaders from
+        """
+
+        embed = discord.Embed(
+            title="10 Man - Velg lagledere", description=f"{self.lobby.host.mention} velger lagledere"
+        )
+        embed.add_field(
+            name=f"Spillere ({len(self.lobby.players)})",
+            value="\n".join(f"* {player.mention}" for player in self.lobby.players),
+        )
+        return embed
+
+
+class TeamLeaderSelect(discord.ui.Select):
+    """Menu for picking the two team leaders"""
+
+    def __init__(self, players: list[discord.Member]):
+        """
+        Parameters
+        ----------
+        players (list[discord.Member]): The players to pick team leaders from
+        """
+
         options = [
             discord.SelectOption(label=p.display_name, value=str(p.id), emoji="🧑‍🦲", description=p.global_name)
-            for p in self.parent_view.lobby.players
+            for p in players
         ]
-        super().__init__(placeholder="Velg 2 lagledere", max_values=2, min_values=2, options=options)
+        super().__init__(placeholder="Velg 2 lagledere", min_values=2, max_values=2, options=options)
 
     async def callback(self, interaction: discord.Interaction):
-        if interaction.user != self.parent_view.lobby.host:
-            embed = embed_templates.error_warning("Bare hosten kan velge lagledere")
-            return await interaction.response.send_message(embed=embed, ephemeral=True, delete_after=10)
+        """
+        Start the draft with the picked team leaders
 
-        team_leaders = []
-        for selected_player in interaction.data["values"]:
-            for player in self.parent_view.lobby.players:
-                if int(selected_player) == player.id:
-                    team_leaders.append(player)
-                    break
+        Parameters
+        ----------
+        interaction (discord.Interaction): The interaction that triggered this
+        """
 
-        self.parent_view.disable_interaction()
-        embed = interaction.message.embeds[0]
-        embed.description = "Lobbyledere har blitt valgt"
-        embed.add_field(name="Lag 1", value=team_leaders[0].mention)
-        embed.add_field(name="Lag 2", value=team_leaders[1].mention)
-        await interaction.message.edit(embed=embed, view=self.parent_view)
+        view: TeamLeaderView = self.view
+        leaders = [player for player in view.lobby.players if str(player.id) in self.values]
+        others = [player for player in view.lobby.players if player not in leaders]
+        draft = TeamDraft(leaders, others)
 
-        turn = random.randint(0, 1)
-        embed = discord.Embed(title="10 Man Lobby - Velg spillere")
-        embed.description = f"Det er {team_leaders[turn].mention} sin tur"
-        embed.add_field(name="Lag 1", value=f"* {team_leaders[0].mention}", inline=False)
-        embed.add_field(name="Lag 2", value=f"* {team_leaders[1].mention}", inline=False)
-        await interaction.response.send_message(
-            embed=embed, view=TeamSelectView(self.parent_view.lobby, self.parent_view.bot, team_leaders, turn)
-        )
+        view.stop()
+        await interaction.response.edit_message(embed=draft.embed(), view=DraftView(view, draft))
 
 
-# ------------------------------------------------------------------------------
+class DraftView(StageView):
+    """The team leaders take turns picking players"""
+
+    def __init__(self, previous: StageView, draft: TeamDraft):
+        """
+        Parameters
+        ----------
+        previous (StageView): The step before this one
+        draft (TeamDraft): The draft so far
+        """
+
+        super().__init__(previous.lobby, previous.bot, previous.message)
+        self.draft = draft
+        self.add_item(PlayerSelect(draft.remaining))
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        """
+        Only let the team leader whose turn it is pick
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): The interaction that triggered this
+
+        Returns
+        ----------
+        (bool): Whether the user may use the menu
+        """
+
+        if interaction.user not in self.draft.leaders:
+            return await self.deny(interaction, "Bare lagledere kan velge spillere")
+        if interaction.user != self.draft.leaders[self.draft.turn]:
+            return await self.deny(interaction, "Det er ikke din tur enda")
+        return True
 
 
-class TeamSelectView(discord.ui.View):
-    def __init__(self, lobby: Lobby, bot: commands.Bot, team_leaders: list[discord.User], turn: int):
-        super().__init__(timeout=15)
-        self.lobby = lobby
-        self.bot = bot
-        self.players = [p for p in self.lobby.players if p not in team_leaders]
-        self.teams = [[team_leaders[0]], [team_leaders[1]]]
-        self.turn = turn
+class PlayerSelect(discord.ui.Select):
+    """Menu for picking the next player for a team"""
 
-        self.add_item(TeamSelectMenu(self))
+    def __init__(self, players: list[discord.Member]):
+        """
+        Parameters
+        ----------
+        players (list[discord.Member]): The players that haven't been picked yet
+        """
 
-    async def on_timeout(self):
-        self.bot.logger.info("TeamSelectView timed out")
-        self.disable_interaction()
-
-    def disable_interaction(self):
-        self.bot.logger.info("TeamSelectView disabled")
-        for item in self.children:
-            item.disabled = True
-
-    async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item):
-        self.bot.logger.error("TeamSelectView error", exc_info=error)
-        embed = embed_templates.error_warning("Oopsie woopsie, we made a fucky wucky")
-        await interaction.response.send_message(embed=embed, delete_after=10)
-
-    def teams_ready(self, interaction):
-        self.bot.logger.info("Teams ready!")
-        embed = interaction.message.embeds[0]
-        embed.title = "10 Man Lobby"
-        embed.description = "Lagene er valgt!"
-        self.add_item(MoveTeamVoiceButton(self))
-
-
-class TeamSelectMenu(discord.ui.Select):
-    def __init__(self, parent_view: TeamSelectView):
-        self.parent_view = parent_view
         options = [
             discord.SelectOption(label=p.display_name, value=str(p.id), emoji="🤼‍♂️", description=p.global_name)
-            for p in self.parent_view.players
+            for p in players
         ]
-
-        super().__init__(placeholder="Velg en spiller til laget ditt", max_values=1, min_values=1, options=options)
-
-    async def rerender_players(self, interaction: discord.Interaction, turn_in_question: int):
-        self.options = [
-            discord.SelectOption(label=p.display_name, value=str(p.id), emoji="🤼‍♂️", description=p.global_name)
-            for p in self.parent_view.players
-        ]
-
-        embed = interaction.message.embeds[0]
-        embed.set_field_at(
-            turn_in_question,
-            name=f"Lag {turn_in_question + 1}",
-            value="\n".join([f"* {p.mention}" for p in self.parent_view.teams[turn_in_question]]),
-        )
-        if not self.options:
-            self.parent_view.clear_items()
-            self.parent_view.teams_ready(interaction)
-        else:
-            embed.description = f"Det er {self.parent_view.teams[self.parent_view.turn][0].mention} sin tur"
-
-        await interaction.message.edit(embed=embed, view=self.parent_view)
+        super().__init__(placeholder="Velg en spiller til laget ditt", options=options)
 
     async def callback(self, interaction: discord.Interaction):
-        if interaction.user != self.parent_view.teams[0][0] and interaction.user != self.parent_view.teams[1][0]:
-            embed = embed_templates.error_warning("Bare lagledere kan velge spillere")
+        """
+        Add the picked player to the team, and move on to voice once everyone is picked
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): The interaction that triggered this
+        """
+
+        view: DraftView = self.view
+        view.draft.pick(int(self.values[0]))
+
+        next_view = VoiceView(view, view.draft.teams) if view.draft.done else DraftView(view, view.draft)
+        view.stop()
+        await interaction.response.edit_message(embed=view.draft.embed(), view=next_view)
+
+
+class VoiceView(StageView):
+    """Each team leader can create a voice channel for their team and move the team there"""
+
+    def __init__(self, previous: StageView, teams: list[list[discord.Member]]):
+        """
+        Parameters
+        ----------
+        previous (StageView): The step before this one
+        teams (list[list[discord.Member]]): The teams. The first player of each team is its leader
+        """
+
+        super().__init__(previous.lobby, previous.bot, previous.message)
+        self.teams = teams
+        self.moved_teams: set[int] = set()
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        """
+        Only let team leaders move their team
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): The interaction that triggered this
+
+        Returns
+        ----------
+        (bool): Whether the user may use the button
+        """
+
+        if interaction.user not in (self.teams[0][0], self.teams[1][0]):
+            return await self.deny(interaction, "Bare lagleder kan flytte laget!")
+        return True
+
+    @discord.ui.button(label="Opprett kanal og flytt lag", emoji="🔊", style=discord.ButtonStyle.primary)
+    async def move_team(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """
+        Create a temporary voice channel for the leader's team and move the team there
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): The interaction that triggered this
+        button (discord.ui.Button): The button that was pressed
+        """
+
+        team = 0 if interaction.user == self.teams[0][0] else 1
+        if team in self.moved_teams:
+            embed = embed_templates.error_warning(f"Kanal for lag {team + 1} allerede opprettet og spillere flyttet!")
             return await interaction.response.send_message(embed=embed, ephemeral=True, delete_after=10)
 
-        if interaction.user != self.parent_view.teams[self.parent_view.turn][0]:
-            embed = embed_templates.error_warning("Det er ikke din tur enda")
+        if not (tempvoice_cog := self.bot.get_cog("TempVoice")):
+            embed = embed_templates.error_fatal("Tempvoice er ikke tilgjengelig akkurat nå")
             return await interaction.response.send_message(embed=embed, ephemeral=True, delete_after=10)
+        temp_voice = tempvoice_cog.temp_voice_helper
 
-        turn_in_question = self.parent_view.turn
-        self.parent_view.turn = 0 if self.parent_view.turn == 1 else 1
+        # Mark the team before awaiting, so pressing twice quickly doesn't create two channels
+        self.moved_teams.add(team)
+        if not (channel := await temp_voice.create_temp_voice(interaction, name=f"10 man - Lag {team + 1}")):
+            self.moved_teams.discard(team)
+            return  # create_temp_voice has already told the user what went wrong
 
-        for i, player in enumerate(self.parent_view.players):
-            if player.id == int(interaction.data["values"][0]):
-                self.parent_view.players.pop(i)
-                self.parent_view.teams[turn_in_question].append(player)
-                break
-
-        await self.rerender_players(interaction, turn_in_question)
-
-        embed = embed_templates.success("Bruker valgt!")
-        await interaction.response.send_message(embed=embed, ephemeral=True, delete_after=5)
-
-
-# ------------------------------------------------------------------------------
-
-
-class MoveTeamVoiceButton(discord.ui.Button):
-    def __init__(self, parent_view: TeamSelectView):
-        self.parent_view = parent_view
-        self.clicked = {"1": None, "2": None}
-        super().__init__(style=discord.ButtonStyle.primary, label="Opprett kanal og flytt lag", emoji="🔊")
-
-    async def callback(self, interaction: discord.Interaction):
-        if interaction.user != self.parent_view.teams[0][0] and interaction.user != self.parent_view.teams[1][0]:
-            embed = embed_templates.error_warning("Bare lagleder kan flytte laget!")
-            return await interaction.response.send_message(embed=embed, ephemeral=True, delete_after=10)
-
-        if interaction.user == self.parent_view.teams[0][0]:
-            team = {"number": "1", "players": self.parent_view.teams[0]}
-        else:
-            team = {"number": "2", "players": self.parent_view.teams[1]}
-
-        temp_voice = TempVoiceHelper(self.parent_view.bot)
-
-        if not self.clicked[team["number"]]:
-            channel = await temp_voice.create_temp_voice(interaction, name=f"10 man - Lag {team['number']}")
-            self.clicked[team["number"]] = channel
-            failed_users = await temp_voice.move_players(interaction, self.clicked[team["number"]], team["players"])
-        else:
-            embed = embed_templates.error_warning(
-                f"Kanal for lag {team['number']} allerede opprettet og spillere flyttet!"
-            )
-            return await interaction.response.send_message(embed=embed, ephemeral=True, delete_after=10)
-
-        if failed_users:
-            failed_users = "\n".join([f"* {user.mention}" for user in failed_users])
+        if failed_users := await temp_voice.move_players(interaction, channel, self.teams[team]):
+            failed_users = "\n".join(f"* {user.mention}" for user in failed_users)
             embed = embed_templates.error_warning(
                 f"Klarte ikke å flytte følgende brukere til kanalen:\n{failed_users}\n\n"
-                + "Dette kan være fordi brukere(ne) ikke er koblet til en kanal fra før"
+                + "Dette kan være fordi brukere(ne) ikke er koblet til en kanal fra før "
                 + "eller at jeg ikke har tillatelse til å flytte",
             )
             return await interaction.response.send_message(embed=embed, delete_after=10)
 
-        embed = embed_templates.success(f"Flyttet lag {team['number']} til voice!")
+        embed = embed_templates.success(f"Flyttet lag {team + 1} til voice!")
         await interaction.response.send_message(embed=embed, delete_after=10)
 
 
@@ -315,7 +447,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(TenMan(bot))

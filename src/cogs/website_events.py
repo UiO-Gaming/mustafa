@@ -1,9 +1,7 @@
 import asyncio
-import json
 from zoneinfo import ZoneInfo
 
 import discord
-import requests
 from discord.ext import commands
 
 
@@ -28,6 +26,10 @@ class WebsiteEvents(commands.Cog):
         )
 
     async def cog_load(self):
+        """
+        Start syncing events once the bot is ready
+        """
+
         asyncio.create_task(self.after_ready())
 
     async def after_ready(self):
@@ -68,6 +70,9 @@ class WebsiteEvents(commands.Cog):
         event (discord.ScheduledEvent): The created event
         """
 
+        if event.guild_id != self.bot.guild_id:
+            return
+
         # Convert timezone to Europe/Oslo
         # We need to set a timezone unit before being able to convert it to another timezone
         # That's why this line is so fucking weird
@@ -91,11 +96,13 @@ class WebsiteEvents(commands.Cog):
             ]
         }
 
-        response = requests.post(self.api_url, headers=self.auth_header, data=json.dumps(mutation))
-        if response.status_code == 200:
-            self.bot.logger.info(f"Created Event in Sanity with ID: {event.id}")
-        else:
-            self.bot.logger.error(f"Failed to create event in Sanity with ID: {event.id}. Response: {response.text}")
+        async with self.bot.http_session.post(self.api_url, headers=self.auth_header, json=mutation) as response:
+            if response.status == 200:
+                self.bot.logger.info(f"Created Event in Sanity with ID: {event.id}")
+            else:
+                self.bot.logger.error(
+                    f"Failed to create event in Sanity with ID: {event.id}. Response: {await response.text()}"
+                )
 
     @commands.Cog.listener("on_scheduled_event_delete")
     async def delete_event(self, event: discord.ScheduledEvent):
@@ -107,13 +114,18 @@ class WebsiteEvents(commands.Cog):
         event (discord.ScheduledEvent): The deleted event
         """
 
+        if event.guild_id != self.bot.guild_id:
+            return
+
         mutation = {"mutations": [{"delete": {"id": str(event.id)}}]}
 
-        response = requests.post(self.api_url, headers=self.auth_header, data=json.dumps(mutation))
-        if response.status_code == 200:
-            self.bot.logger.info(f"Deleted Event in Sanity with ID: {event.id}")
-        else:
-            self.bot.logger.error(f"Failed to delete event in Sanity with ID: {event.id}. Response: {response.text}")
+        async with self.bot.http_session.post(self.api_url, headers=self.auth_header, json=mutation) as response:
+            if response.status == 200:
+                self.bot.logger.info(f"Deleted Event in Sanity with ID: {event.id}")
+            else:
+                self.bot.logger.error(
+                    f"Failed to delete event in Sanity with ID: {event.id}. Response: {await response.text()}"
+                )
 
     @commands.Cog.listener("on_scheduled_event_update")
     async def update_event(self, before: discord.ScheduledEvent, after: discord.ScheduledEvent):
@@ -132,7 +144,9 @@ class WebsiteEvents(commands.Cog):
             # As all events have the same id up until around 48 hours before its start time
             # I have not looked into this though
             await self.delete_event(before)
-            await self.create_event(after)
+
+        if after.status == discord.EventStatus.cancelled:
+            await self.delete_event(after)
         else:
             await self.create_event(after)
 
@@ -143,7 +157,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(WebsiteEvents(bot))

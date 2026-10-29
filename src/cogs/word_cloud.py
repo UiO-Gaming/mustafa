@@ -1,7 +1,8 @@
+import asyncio
 import functools
-import itertools
 import json
 import re
+from collections import Counter
 from collections import defaultdict
 from io import BytesIO
 from io import StringIO
@@ -9,16 +10,16 @@ from io import StringIO
 import discord
 import nltk
 import numpy as np
-import psycopg2
+import psycopg
 from discord import app_commands
 from discord.ext import commands
 from discord.ext import tasks
 from nltk.corpus import stopwords
 from PIL import Image
-from psycopg2.extras import execute_batch
 from wordcloud import WordCloud as WCloud  # Avoid naming conflicts with cog class name
 
 from cogs.utils import embed_templates
+from cogs.utils import misc_utils
 
 
 class WordCloud(commands.Cog):
@@ -32,48 +33,56 @@ class WordCloud(commands.Cog):
         """
 
         self.bot = bot
-        self.cursor = self.bot.db_connection.cursor()
-        self.init_db()
 
-        # Default dict where all users are empty defaultdicts
-        # The user's defaultdict has a default value of 0
-        self.word_freq_cache = defaultdict(lambda: defaultdict(int))
+        # Word counts per user that haven't been written to the database yet
+        self.word_freq_cache: defaultdict[int, Counter] = defaultdict(Counter)
 
-        # We cache the consenting users to avoid querying the database every 16:36
-        # It's frail but it works unless you have a skill issue
-        self.consenting_users = []
-        self.populate_consenting_users()
+        # Cached to avoid querying the database on every message
+        self.consenting_users: set[int] = set()
 
-        nltk.download("stopwords")
+        # Held while writing the cache and while deleting a user's data,
+        # so a user's words can't be written after their data has been deleted
+        self.cache_lock = asyncio.Lock()
 
-        self.insert_cache_loop.start()
+        # Shared by all /ordsky generer siste invocations. Discord allows 50 requests per second for the whole bot
+        self.history_rate_limiter = misc_utils.RateLimiter(per_second=10)
+
+        try:
+            nltk.data.find("corpora/stopwords")
+        except LookupError:
+            nltk.download("stopwords")
 
         self.MSG_NO_DATA = "Fant ingen data om deg"  # SonarCloud recommended this LMAO. Makes sense but also not
 
-    def init_db(self):
+    async def cog_load(self):
+        """
+        Set up the database before the cog is used
+        """
+
+        await self.init_db()
+        await self.populate_consenting_users()
+        self.insert_cache_loop.start()
+
+    async def init_db(self):
         """
         Create the necessary tables for the Ordsky cog to work
         """
 
-        self.cursor.execute(
-            """
+        await self.bot.db.execute("""
             CREATE TABLE IF NOT EXISTS wordcloud_metadata (
                 discord_user_id BIGINT PRIMARY KEY,
                 tracked_since_message_channel_id BIGINT NOT NULL,
                 tracked_since_message_id BIGINT NOT NULL UNIQUE
             )
-            """
-        )
-        self.cursor.execute(
-            """
+            """)
+        await self.bot.db.execute("""
             CREATE TABLE IF NOT EXISTS wordcloud_words (
                 discord_user_id BIGINT NOT NULL,
                 word TEXT NOT NULL,
                 frequency INTEGER NOT NULL,
                 PRIMARY KEY (discord_user_id, word)
             )
-            """
-        )
+            """)
 
     async def cog_unload(self):
         """
@@ -82,20 +91,18 @@ class WordCloud(commands.Cog):
 
         self.bot.logger.info("Unloading cog")
         self.insert_cache_loop.cancel()
-        self.cursor.close()
+        await self.insert_cache()
 
-    def populate_consenting_users(self):
+    async def populate_consenting_users(self):
         """
         Populates the cached list of consenting users
         """
 
-        self.cursor.execute(
-            """
+        rows = await self.bot.db.fetchall("""
             SELECT discord_user_id
             FROM wordcloud_metadata
-            """
-        )
-        self.consenting_users = [row[0] for row in self.cursor.fetchall()]
+            """)
+        self.consenting_users = {row[0] for row in rows}
 
     async def insert_cache(self):
         """
@@ -103,36 +110,29 @@ class WordCloud(commands.Cog):
         We do this in order to prevent excess database writes
         """
 
-        if not self.word_freq_cache:
-            return
+        async with self.cache_lock:
+            if not self.word_freq_cache:
+                return
 
-        # Flatten the defaultdict into a list of tuples
-        # This is a bit of a hack but it works
-        word_freqs = list(
-            itertools.chain.from_iterable(
-                [(user_id, word, freq) for word, freq in user_word_freqs.items()]
-                for user_id, user_word_freqs in self.word_freq_cache.items()
-            )
-        )
+            # Swap in an empty cache before awaiting, so words from messages sent in the meantime aren't lost
+            cache, self.word_freq_cache = self.word_freq_cache, defaultdict(Counter)
+            word_freqs = [(user_id, word, freq) for user_id, words in cache.items() for word, freq in words.items()]
 
-        # Insert cache into database
-        try:
-            execute_batch(
-                self.cursor,
-                """
-                INSERT INTO wordcloud_words (discord_user_id, word, frequency)
-                VALUES (%s, %s, %s)
-                ON CONFLICT (discord_user_id, word)
-                DO UPDATE SET frequency = wordcloud_words.frequency + EXCLUDED.frequency
-                """,
-                word_freqs,
-            )
-        except psycopg2.Error as err:
-            self.bot.logger.error(f"Failed to insert wordcloud cache into database - {err}")
-
-        self.word_freq_cache.clear()
+            try:
+                await self.bot.db.executemany(
+                    """
+                    INSERT INTO wordcloud_words (discord_user_id, word, frequency)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (discord_user_id, word)
+                    DO UPDATE SET frequency = wordcloud_words.frequency + EXCLUDED.frequency
+                    """,
+                    word_freqs,
+                )
+            except psycopg.Error as err:
+                self.bot.logger.error(f"Failed to insert wordcloud cache into database - {err}")
 
     @tasks.loop(minutes=20)
+    @misc_utils.log_errors
     async def insert_cache_loop(self):
         """
         Clears and inserts word frequency cache into the database every 20 minutes
@@ -140,11 +140,6 @@ class WordCloud(commands.Cog):
 
         self.bot.logger.info("Dumping word cloud cache to database...")
         await self.insert_cache()
-
-    @insert_cache_loop.after_loop
-    async def on_insert_cache_loop_cancel(self):
-        if self.insert_cache_loop.is_being_cancelled() and self.word_freq_cache:
-            await self.insert_cache()
 
     @commands.Cog.listener("on_message")
     async def word_freq_listener(self, message: discord.Message):
@@ -159,12 +154,7 @@ class WordCloud(commands.Cog):
         if not self.can_count_message(message):
             return
 
-        tokens = self.tokenize(message.clean_content)
-
-        for token in tokens:
-            # Enter into cache
-            # This may take a performance hit but who tf cares. We're using python anyway
-            self.word_freq_cache[message.author.id][token] += 1
+        self.word_freq_cache[message.author.id].update(self.tokenize(message.clean_content))
 
     def can_count_message(self, message: discord.Message) -> bool:
         """
@@ -176,7 +166,7 @@ class WordCloud(commands.Cog):
 
         Returns
         ----------
-        bool: Whether the message can be counted
+        (bool): Whether the message can be counted
         """
 
         return (
@@ -194,7 +184,7 @@ class WordCloud(commands.Cog):
 
         Returns
         ----------
-        list[str]: List of words
+        (list[str]): List of words
         """
 
         tokens = []
@@ -218,10 +208,54 @@ class WordCloud(commands.Cog):
 
         return tokens
 
+    MIN_WORD_LENGTH = 3
+
+    @staticmethod
+    def filter_words() -> set[str]:
+        """
+        Returns
+        ----------
+        (set[str]): Norwegian and english words too common to include in a wordcloud
+        """
+
+        return set(stopwords.words("norwegian") + stopwords.words("english"))
+
+    @staticmethod
+    def render_wordcloud(max_words: int, allow_bigrams: bool, generate: callable) -> BytesIO:
+        """
+        Creates a wordcloud, fills it using the given function and renders it to a PNG
+
+        Parameters
+        ----------
+        max_words (int): Maximum number of words to include in the wordcloud
+        allow_bigrams (bool): Whether to allow bigrams in the wordcloud
+        generate (callable): Function that takes the WordCloud object and fills it with words
+
+        Returns
+        ----------
+        (BytesIO): BytesIO object containing the wordcloud image
+        """
+
+        mask = np.array(Image.open("./src/assets/word_cloud_mask.png"))
+        wc = WCloud(
+            max_words=max_words,
+            mask=mask,
+            repeat=False,
+            stopwords=WordCloud.filter_words(),
+            min_word_length=WordCloud.MIN_WORD_LENGTH,
+            collocations=allow_bigrams,
+        )
+        generate(wc)
+
+        b = BytesIO()
+        wc.to_image().save(b, "png")
+        b.seek(0)
+        return b
+
     @staticmethod
     def generate_wordcloud(text: str, max_words: int = 4000, allow_bigrams: bool = False) -> BytesIO:
         """
-        Generates a wordcloud
+        Generates a wordcloud from text
 
         Parameters
         ----------
@@ -231,31 +265,33 @@ class WordCloud(commands.Cog):
 
         Returns
         ----------
-        BytesIO: BytesIO object containing the wordcloud image
+        (BytesIO): BytesIO object containing the wordcloud image
         """
 
-        filter_words = set(stopwords.words("norwegian") + stopwords.words("english"))
-        mask = np.array(Image.open("./src/assets/word_cloud_mask.png"))
+        return WordCloud.render_wordcloud(max_words, allow_bigrams, lambda wc: wc.generate(text))
 
-        wc = WCloud(
-            max_words=max_words,
-            mask=mask,
-            repeat=False,
-            stopwords=filter_words,
-            min_word_length=3,
-            collocations=allow_bigrams,
-        )
-        wc.process_text(text)
-        wc.generate(text)
+    @staticmethod
+    def generate_wordcloud_from_frequencies(frequencies: dict[str, int], max_words: int = 4000) -> BytesIO:
+        """
+        Generates a wordcloud from word frequencies, applying the same filtering as for text
 
-        # Color the wordcloud based on the mask
-        # wc.recolor(color_func=ImageColorGenerator(mask))
+        Parameters
+        ----------
+        frequencies (dict[str, int]): How many times each word has been used
+        max_words (int): Maximum number of words to include in the wordcloud. Defaults to 4000
 
-        img = wc.to_image()
-        b = BytesIO()
-        img.save(b, "png")
-        b.seek(0)
-        return b
+        Returns
+        ----------
+        (BytesIO): BytesIO object containing the wordcloud image
+        """
+
+        filter_words = WordCloud.filter_words()
+        frequencies = {
+            word: count
+            for word, count in frequencies.items()
+            if len(word) >= WordCloud.MIN_WORD_LENGTH and word not in filter_words and not word.isdigit()
+        }
+        return WordCloud.render_wordcloud(max_words, False, lambda wc: wc.generate_from_frequencies(frequencies))
 
     wordcloud_group = app_commands.Group(
         name="ordsky", description="Generer en ordsky basert på dine mest frekvente sagte ord"
@@ -269,11 +305,11 @@ class WordCloud(commands.Cog):
     @wordcloud_group.command(name="samtykke", description="Gi samtykke til å samle meldingsdataen din for ordskyer")
     async def consent(self, interaction: discord.Interaction):
         """
-        Gi samtykke til å samle meldingsdataen din
+        Consent to having your messages counted for word clouds
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         if interaction.user.id in self.consenting_users:
@@ -282,22 +318,21 @@ class WordCloud(commands.Cog):
             )
 
         try:
-            self.cursor.execute(
+            await self.bot.db.execute(
                 """
                 INSERT INTO wordcloud_metadata
                 VALUES (%s, %s, %s)
                 """,
                 (interaction.user.id, interaction.channel_id, interaction.id),
             )
-        except psycopg2.Error as err:
-            self.bot.db_connection.rollback()
+        except psycopg.Error as err:
             self.bot.logger.error(f"Failed to insert wordcloud metadata into database - {err}")
             return await interaction.response.send_message(
                 embed=embed_templates.error_fatal("Klarte ikke å skrive til database"),
                 ephemeral=False,
             )
 
-        self.consenting_users.append(interaction.user.id)
+        self.consenting_users.add(interaction.user.id)
 
         embed = embed_templates.success("Samtykke registrert!")
         await interaction.response.send_message(embed=embed, ephemeral=False)
@@ -307,37 +342,35 @@ class WordCloud(commands.Cog):
     @wordcloud_group.command(name="slett", description="Fjern samtykke og slett alle dine ordskydata")
     async def consent_remove(self, interaction: discord.Interaction):
         """
-        Fjern samtykke og slett meldingsdata
+        Withdraw consent and delete your word cloud data
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
-        try:
-            self.consenting_users.remove(interaction.user.id)
-        except ValueError:
+        if interaction.user.id not in self.consenting_users:
             return await interaction.response.send_message(
                 embed=embed_templates.error_warning(self.MSG_NO_DATA), ephemeral=False
             )
 
-        self.word_freq_cache.pop(f"{interaction.user.id}", None)
+        async with self.cache_lock:
+            try:
+                await self.bot.db.execute_in_transaction(
+                    [
+                        ("DELETE FROM wordcloud_metadata WHERE discord_user_id = %s", (interaction.user.id,)),
+                        ("DELETE FROM wordcloud_words WHERE discord_user_id = %s", (interaction.user.id,)),
+                    ]
+                )
+            except psycopg.Error as err:
+                self.bot.logger.error(f"Failed to delete wordcloud metadata from database - {err}")
+                return await interaction.response.send_message(
+                    embed=embed_templates.error_fatal("Klarte ikke å slette fra database"),
+                    ephemeral=False,
+                )
 
-        try:
-            self.cursor.execute(
-                """
-                DELETE FROM wordcloud_metadata WHERE discord_user_id = %s;
-                DELETE FROM wordcloud_words WHERE discord_user_id = %s;
-                """,
-                (interaction.user.id, interaction.user.id),
-            )
-        except psycopg2.Error as err:
-            self.bot.db_connection.rollback()
-            self.bot.logger.error(f"Failed to delete wordcloud metadata from database - {err}")
-            return await interaction.response.send_message(
-                embed=embed_templates.error_fatal("Klarte ikke å slette fra database"),
-                ephemeral=False,
-            )
+            self.consenting_users.discard(interaction.user.id)
+            self.word_freq_cache.pop(interaction.user.id, None)
 
         embed = embed_templates.success("Meldingsdata er slettet!")
         await interaction.response.send_message(embed=embed)
@@ -347,14 +380,14 @@ class WordCloud(commands.Cog):
     @wordcloud_group.command(name="data", description="Få tilsendt dine ordskydata i JSON-format")
     async def data(self, interaction: discord.Interaction):
         """
-        Få tilsendt dine data
+        Send the user their word cloud data as a JSON file
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
-        self.cursor.execute(
+        result = await self.bot.db.fetchall(
             """
             SELECT word, frequency
             FROM wordcloud_words
@@ -363,7 +396,6 @@ class WordCloud(commands.Cog):
             """,
             (interaction.user.id,),
         )
-        result = self.cursor.fetchall()
 
         if not result:
             return await interaction.response.send_message(
@@ -388,11 +420,11 @@ class WordCloud(commands.Cog):
     )
     async def generate_db(self, interaction: discord.Interaction):
         """
-        Generer en ordsky basert på dine mest frekvente sagte ord siden du ga samtykke
+        Generate a word cloud from the user's most used words since they consented
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         await interaction.response.defer()
@@ -401,7 +433,7 @@ class WordCloud(commands.Cog):
         await self.insert_cache()
 
         # Fetch word count from database
-        self.cursor.execute(
+        results = await self.bot.db.fetchall(
             """
             SELECT word, frequency
             FROM wordcloud_words
@@ -409,52 +441,101 @@ class WordCloud(commands.Cog):
             """,
             (interaction.user.id,),
         )
-        results = self.cursor.fetchall()
 
         if not results:
             return await interaction.followup.send(
                 embed=embed_templates.error_warning(self.MSG_NO_DATA), ephemeral=False
             )
 
-        # Fetch tracking start time metadata
-        # This doesn't work most of the time so consider using the API call instead of cache call
-        # Or consider removing this feature entirely
-        self.cursor.execute(
+        # The stored "message" ID is the ID of the consent interaction, so its timestamp is when tracking started
+        row = await self.bot.db.fetchone(
             """
-            SELECT tracked_since_message_channel_id, tracked_since_message_id
+            SELECT tracked_since_message_id
             FROM wordcloud_metadata
             WHERE discord_user_id = %s
             """,
             (interaction.user.id,),
         )
-        origin_msg_channel_id, origin_msg_id = self.cursor.fetchone()
-        try:
-            origin_msg_channel = self.bot.get_channel(origin_msg_channel_id)
-            origin_msg = await origin_msg_channel.fetch_message(origin_msg_id)
-            origin_msg_timestamp = discord.utils.format_dt(origin_msg.created_at, style="f")
-        except discord.errors.NotFound:
-            origin_found = False
-        else:
-            origin_found = True
+        tracked_since = discord.utils.snowflake_time(row[0])
 
-        # Converts the raw SQL results tuple to a string where
-        # each word occurs the x number of frequency that is provided
-        # Having to reconstruct the data this way is probably not optimal
-        text = " ".join(list(itertools.chain(*([word] * count for (word, count) in results))))
-
-        # Generate word cloud
-        generation_task = functools.partial(WordCloud.generate_wordcloud, text)
+        generation_task = functools.partial(WordCloud.generate_wordcloud_from_frequencies, dict(results))
         word_cloud = await self.bot.loop.run_in_executor(None, generation_task)
 
         word_cloud_file = discord.File(word_cloud, filename=f"wordcloud_{interaction.user.id}.png")
         embed = discord.Embed(title="☁️ Her er ordskyen din! ☁️")
-        embed.description = "Basert på de 4000 mest frekvente ordene dine siden "
-        if origin_found:
-            embed.description += f"{origin_msg_timestamp}\n[Se melding]({origin_msg.jump_url})"
-        else:
-            embed.description += "`ukjent dato`"
+        embed.description = (
+            f"Basert på de 4000 mest frekvente ordene dine siden {discord.utils.format_dt(tracked_since, style='f')}"
+        )
         embed.set_image(url=f"attachment://wordcloud_{interaction.user.id}.png")
         await interaction.followup.send(embed=embed, file=word_cloud_file)
+
+    def readable_channels(self, guild: discord.Guild, user: discord.Member) -> list[discord.TextChannel]:
+        """
+        Get the text channels to read a user's recent messages from
+
+        Parameters
+        ----------
+        guild (discord.Guild): The guild to get channels from
+        user (discord.Member): The user whose messages are read
+
+        Returns
+        ----------
+        (list[discord.TextChannel]): Channels the user can write in, the bot can read and that aren't private
+        """
+
+        # The word cloud is posted publicly, so skip private channels like board chats.
+        # Without a member role, only channels everyone can write in count as public
+        member_role = guild.get_role(self.bot.role_ids.get("member"))
+        public_roles = [guild.default_role, member_role] if member_role else [guild.default_role]
+
+        channels = []
+        for channel in guild.text_channels:
+            bot_permissions = channel.permissions_for(guild.me)
+            if (
+                channel.permissions_for(user).send_messages
+                and bot_permissions.read_messages
+                and bot_permissions.read_message_history
+                and any(channel.permissions_for(role).send_messages for role in public_roles)
+            ):
+                channels.append(channel)
+
+        return channels
+
+    async def fetch_recent_tokens(self, channel: discord.TextChannel, user: discord.Member, limit: int) -> list[str]:
+        """
+        Tokenize a user's messages among the most recent messages in a channel
+
+        Parameters
+        ----------
+        channel (discord.TextChannel): The channel to read
+        user (discord.Member): The user whose messages are tokenized
+        limit (int): How many of the most recent messages in the channel to read
+
+        Returns
+        ----------
+        (list[str]): The tokens of the user's messages
+        """
+
+        tokens = []
+        before = None
+        while limit > 0:
+            # One request per page of 100 messages
+            await self.history_rate_limiter.wait()
+            try:
+                messages = [message async for message in channel.history(limit=min(limit, 100), before=before)]
+            except discord.Forbidden:
+                break
+
+            for message in messages:
+                if message.author.id == user.id and self.can_count_message(message):
+                    tokens += self.tokenize(message.clean_content)
+
+            if len(messages) < min(limit, 100):
+                break
+            limit -= len(messages)
+            before = messages[-1]
+
+        return tokens
 
     @app_commands.checks.bot_has_permissions(embed_links=True, attach_files=True)
     @app_commands.checks.cooldown(1, 30)
@@ -462,46 +543,25 @@ class WordCloud(commands.Cog):
         name="siste",
         description="Generer en ordsky basert på dine mest frekvente sagte ord fra de siste meldingene dine",
     )
-    async def generate_last(self, interaction: discord.Interaction, antall: app_commands.Range[int, 100, 2000] = 1000):
+    @app_commands.rename(amount="antall")
+    @app_commands.describe(amount="Hvor mange av de siste meldingene i hver kanal som skal leses. Flere tar lengre tid")
+    async def generate_last(self, interaction: discord.Interaction, amount: app_commands.Range[int, 50, 2000] = 1000):
         """
-        Generer en ordsky basert på dine mest frekvente sagte ord fra de siste meldingene dine
+        Generate a word cloud from the user's most used words in the most recent messages of each channel
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
+        amount (int): How many of the most recent messages in each channel to read
         """
 
         await interaction.response.defer()
 
-        # Get member role for future channel permission checking
-        # This shouldn't be hard coded but eh
-        board_member_role = interaction.guild.get_role(779849617651138601)
-
-        # This is horrible but there's a lot of edge cases to handle so spare me pls
-        all_messages = ""
-        for channel in interaction.guild.text_channels:
-            if not channel.permissions_for(interaction.user).send_messages:
-                continue
-
-            # Avoid reading secret board member chats
-            if (
-                board_member_role  # None if invoked outside of UiO Gaming's server. Avoiding crash due to AND check
-                and not channel.permissions_for(board_member_role).send_messages
-                and not channel.permissions_for(interaction.guild.default_role).send_messages
-            ):
-                continue
-
-            try:
-                # Limit search to half of requested messages to avoid rate limits
-                # We assume we can still fetch enough tokens to reach the requested amount
-                async for message in channel.history(limit=int(antall / 2)):
-                    if not self.can_count_message(message):
-                        continue
-
-                    filtered_msg = " ".join(self.tokenize(message.clean_content))
-                    all_messages += f"{filtered_msg} "
-            except discord.errors.Forbidden:
-                continue
+        channels = self.readable_channels(interaction.guild, interaction.user)
+        channel_tokens = await asyncio.gather(
+            *(self.fetch_recent_tokens(channel, interaction.user, amount) for channel in channels)
+        )
+        all_messages = " ".join(token for tokens in channel_tokens for token in tokens)
 
         if not all_messages:
             return await interaction.followup.send(
@@ -516,10 +576,7 @@ class WordCloud(commands.Cog):
 
         word_cloud_file = discord.File(word_cloud, filename=f"wordcloud_{interaction.user.id}.png")
         embed = discord.Embed(title="☁️ Her er ordskyen din! ☁️")
-        embed.description = (
-            f"Basert på de {int(antall/2)} siste meldingene i alle kanaler og "
-            + f"topp {antall} mest frekvente ord i dine meldinger"
-        )
+        embed.description = f"Basert på de {len(all_messages.split())} mest brukte ordene dine blant de {amount} siste meldingene i {len(channels)} kanaler"
         embed.set_image(url=f"attachment://wordcloud_{interaction.user.id}.png")
         await interaction.followup.send(embed=embed, file=word_cloud_file)
 
@@ -530,7 +587,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(WordCloud(bot))

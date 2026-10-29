@@ -1,8 +1,8 @@
 import asyncio
 import json
 import random
-from datetime import datetime
 from datetime import timedelta
+from io import BytesIO
 from typing import override
 
 import cv2
@@ -11,10 +11,9 @@ import numpy as np
 from discord import app_commands
 from discord.ext import commands
 
+from cogs.utils import discord_utils
 from cogs.utils import embed_templates
 from cogs.utils import misc_utils
-from cogs.utils.discord_utils import Lobby
-from cogs.utils.discord_utils import LobbyView
 
 
 class CS2Bingo(commands.Cog):
@@ -28,7 +27,7 @@ class CS2Bingo(commands.Cog):
         """
 
         self.bot = bot
-        self.active_lobbies = {}  # dict[str, discord_utils.Lobby]
+        self.active_lobbies: dict[int, discord_utils.Lobby] = {}
 
     bingo_group = app_commands.Group(name="cs2bingo", description="Bingo commands for CS2")
 
@@ -41,42 +40,10 @@ class CS2Bingo(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
-        if lobby := self.active_lobbies.get(str(interaction.user.id), None):
-            if lobby.ends < datetime.now():
-                self.active_lobbies.pop(str(interaction.user.id))
-            else:
-                return await interaction.response.send_message(
-                    embed=embed_templates.error_warning("Du hoster allerede en lobby")
-                )
-
-        for lobby in self.active_lobbies.values():
-            if interaction.user.id in lobby.players:
-                return await interaction.response.send_message(
-                    embed=embed_templates.error_warning("Du er allerede i en lobby")
-                )
-
-        self.active_lobbies[str(interaction.user.id)] = Lobby(
-            host=interaction.user,
-            players=[interaction.user],
-            ends=datetime.now() + timedelta(minutes=10),
-            kicked_players=[],
-        )
-
-        time_left = discord.utils.format_dt(self.active_lobbies[str(interaction.user.id)].ends, "R")
-
-        embed = discord.Embed(
-            title="Bingolobby",
-            description=f"Lobbyen stenger {time_left}. Bli med innen da!",
-            color=interaction.user.color,
-        )
-        embed.set_author(name=interaction.user.global_name, icon_url=interaction.user.avatar)
-        embed.add_field(name="Spillere", value=f"* {interaction.user.mention}", inline=False)
-        await interaction.response.send_message(
-            embed=embed, view=BingoView(self.active_lobbies[str(interaction.user.id)], self.bot)
-        )
+        await discord_utils.open_lobby(interaction, self.active_lobbies, BingoView, "Bingolobby", timedelta(minutes=10))
 
 
 class BingoGenerator:
@@ -95,9 +62,22 @@ class BingoGenerator:
 
     @classmethod
     async def sample_cells(cls, players: list[str], bot: commands.Bot) -> dict[str, list[str]]:
+        """
+        Pick 25 squares for each player's sheet
+
+        Parameters
+        ----------
+        players (list[str]): The Discord IDs of the players
+        bot (commands.Bot): The bot instance
+
+        Returns
+        ----------
+        (dict[str, list[str]]): Each player's squares, keyed by their Discord ID
+        """
+
         assert 0 < len(players) <= 10
 
-        default_space = cls.CELLS["all"]
+        default_space = list(cls.CELLS["all"])
 
         if len(players) < 5:
             default_space += cls.CELLS["randoms"]
@@ -121,13 +101,18 @@ class BingoGenerator:
         return player_cells
 
     @classmethod
-    async def generate_sheets(cls, players: list[discord.Member], bot: commands.Bot):
+    async def generate_sheets(cls, players: list[discord.Member], bot: commands.Bot) -> dict[str, bytes]:
         """
         Generate bingo sheets for each player
 
         Parameters
         ----------
-        players (list[str]): List of the player's discord IDs as strings
+        players (list[discord.Member]): The players to generate sheets for
+        bot (commands.Bot): The bot instance
+
+        Returns
+        ----------
+        (dict[str, bytes]): Each player's sheet as PNG data, keyed by their discord ID as a string
         """
 
         players = [str(p.id) for p in players]
@@ -139,13 +124,25 @@ class BingoGenerator:
         player_sheets = {}
 
         for player in players:
-            player_sheets[player] = await cls.generate_sheet(sample_space[player], image)
+            player_sheets[player] = await asyncio.to_thread(cls.generate_sheet, sample_space[player], image)
 
-        for p, sheet in player_sheets.items():
-            cv2.imwrite(f"./src/assets/temp/{p}_bingo.png", sheet)
+        return player_sheets
 
     @classmethod
-    async def generate_sheet(cls, sample_space: list, image: np.ndarray):
+    def generate_sheet(cls, sample_space: list, image: np.ndarray) -> bytes:
+        """
+        Draw the squares on a bingo sheet
+
+        Parameters
+        ----------
+        sample_space (list): The squares to draw. Emptied as they are drawn
+        image (np.ndarray): The empty bingo sheet
+
+        Returns
+        ----------
+        (bytes): The sheet as PNG data
+        """
+
         image = image.copy()
 
         # start = 8, 294
@@ -157,7 +154,7 @@ class BingoGenerator:
         for i in range(0, 5):
             for j in range(0, 5):
                 width = 123
-                await misc_utils.put_text_in_box(
+                misc_utils.put_text_in_box(
                     sliced,
                     sample_space.pop(),
                     top_left=(i * width + 1, j * width + 1),
@@ -165,16 +162,34 @@ class BingoGenerator:
                     font_path=cls.FONT_PATH,
                 )
 
-        return image
+        return cv2.imencode(".png", image)[1].tobytes()
 
 
-class BingoView(LobbyView):
-    def __init__(self, lobby: Lobby, bot: commands.Bot):
+class BingoView(discord_utils.LobbyView):
+    """Bingo lobby that sends every player a bingo sheet when started"""
+
+    def __init__(self, lobby: discord_utils.Lobby, bot: commands.Bot):
+        """
+        Parameters
+        ----------
+        lobby (Lobby): The lobby to show
+        bot (commands.Bot): The bot instance
+        """
+
         super().__init__(lobby, bot)
 
     @discord.ui.button(label="Start", style=discord.ButtonStyle.green)
     @override
     async def start_lobby(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """
+        Close the lobby and send every player their bingo sheet
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): The interaction that triggered this
+        button (discord.ui.Button): The button that was pressed
+        """
+
         if interaction.user != self.lobby.host:
             embed = embed_templates.error_warning("Bare hosten kan starte bingoen")
             return await interaction.response.send_message(embed=embed, ephemeral=True, delete_after=10)
@@ -192,16 +207,15 @@ class BingoView(LobbyView):
         )
         await interaction.response.send_message(content=mention_players, embed=embed)
 
-        await BingoGenerator.generate_sheets(self.lobby.players, self.bot)
+        sheets = await BingoGenerator.generate_sheets(self.lobby.players, self.bot)
         for player in self.lobby.players:
+            sheet = sheets[str(player.id)]
             try:
-                await player.send(file=discord.File(f"./src/assets/temp/{player.id}_bingo.png"))
+                await player.send(file=discord.File(BytesIO(sheet), filename=f"{player.id}_bingo.png"))
             except discord.Forbidden:
                 await interaction.followup.send(
                     f"{player.mention} har ikke åpnet DM-ene sine :angry:\nSender den her i stedet",
-                    file=discord.File(
-                        f"./src/assets/temp/{player.id}_bingo.png", filename=f"SPOILER_{player.id}_bingo.png"
-                    ),
+                    file=discord.File(BytesIO(sheet), filename=f"SPOILER_{player.id}_bingo.png"),
                 )
             finally:
                 await asyncio.sleep(1)
@@ -213,7 +227,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(CS2Bingo(bot))

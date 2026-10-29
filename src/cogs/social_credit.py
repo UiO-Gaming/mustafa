@@ -1,3 +1,17 @@
+"""
+------ GJORT ------
+- score for skriving om morgenen (kl. 5-9)
++ score for skriving på natta (01-05)
+- score for å skrive i politikk
++ score for å skrive i medlemschat
+- score for å bli pinged i uio gullkorn
++ score for å få melding på stjernetavla/bli stjerna. multiplier per stjerne
+- score hver dag med weebrolle (lite)
+- score for å skrive en skjellsord mot maskiner
+- score sitte i afk voice
++ score for å sitte i voice
+"""
+
 import re
 from dataclasses import dataclass
 from random import randint
@@ -11,70 +25,80 @@ from cogs.utils import discord_utils
 from cogs.utils import embed_templates
 from cogs.utils import misc_utils
 
-"""
------- GJORT ------
-- score for skriving om morgenen (kl. 5-9)
-+ score for skriving på natta (01-05)
-- score for å skrive i politikk
-+ score for å skrive i medlemschat
-- score for å bli pinged i uio gullkorn
-+ score for å få melding på stjernetavla/bli stjerna. multiplier per stjerne
-- score hver dag med weebrolle (lite)
-- score for å skrive en skjellsord mot maskiner
-
------- TO-DO ------
-- score sitte i afk
-+ score for å sitte i voice per time
-"""
-
 
 @dataclass
 class CreditUser:
+    """A user's row in the social credit table"""
+
     user_id: int
     credit_score: int
 
 
 class SocialCredit(commands.Cog):
+    """Give and take social credit for things users do"""
+
     def __init__(self, bot: commands.Bot):
+        """
+        Parameters
+        ----------
+        bot (commands.Bot): The bot instance
+        """
+
         self.bot = bot
         self.fuck_uwu.start()
+        self.voice_activity.start()
 
         self.START_POINTS = 1000
-        self.cursor = self.bot.db_connection.cursor()
-        self.init_db()
+        self.STAR_THRESHOLD = 3
+        self.POINTS_PER_STAR = 25
+        self.VOICE_POINTS = 1
+        self.AFK_POINTS = 2
 
-    def init_db(self):
+    async def cog_load(self):
+        """
+        Set up the database before the cog is used
+        """
+
+        await self.init_db()
+
+    async def init_db(self):
         """
         Create the necessary tables for the social credit cog to work
         """
 
-        self.cursor.execute(
-            """
+        await self.bot.db.execute("""
             CREATE TABLE IF NOT EXISTS social_credit (
                 user_id BIGINT PRIMARY KEY,
-                credit_score SMALLINT NOT NULL
+                credit_score INTEGER NOT NULL
             );
-            """
-        )
+            """)
+
+        await self.bot.db.execute("ALTER TABLE social_credit ALTER COLUMN credit_score TYPE INTEGER;")
 
     def add_new_citizen(func):
         """
-        Decorator that, when used, make sure that a user is inserted
-        into the database before executing the function
+        Decorator that makes sure the user is in the database before running the function.
+        The user's ID has to be the function's first argument
+
+        Parameters
+        ----------
+        func (callable): The function to wrap
         """
 
         async def wrapper(*args, **kwargs):
             self = args[0]
-            self.cursor.execute("SELECT user_id FROM social_credit WHERE user_id = %s", (args[1],))
-            if not self.cursor.fetchone():
-                self.add_citizen(args[1])
+            await self.add_citizen(args[1])
             await func(*args, **kwargs)
 
         return wrapper
 
     def roll(percent: int = 50):
         """
-        Decorator that executes the function with a given percent chance
+        Decorator that only runs the function with a given chance
+
+        Parameters
+        ----------
+        percent (int): The chance of running the function, in percent
         """
 
         def decorator(func):
@@ -86,25 +110,27 @@ class SocialCredit(commands.Cog):
 
         return decorator
 
-    def add_citizen(self, user_id: int):
+    async def add_citizen(self, user_id: int):
         """
-        Adds a user to the database
+        Adds a user to the database if they aren't already in it
 
         Parameters
         ----------
         user_id (int): The user's Discord ID
         """
 
-        self.cursor.execute(
+        await self.bot.db.execute(
             """
             INSERT INTO social_credit
             (user_id, credit_score)
             VALUES (%s, %s)
+            ON CONFLICT (user_id) DO NOTHING
             """,
             (user_id, self.START_POINTS),
         )
 
     @tasks.loop(time=misc_utils.MIDNIGHT, reconnect=True)
+    @misc_utils.log_errors
     async def fuck_uwu(self):
         """
         Deducts points from people with the weeb role every 24 hours
@@ -120,7 +146,7 @@ class SocialCredit(commands.Cog):
                 + "If it is, ignore this."
             )
             return
-        if not (weeb_role := guild.get_role(803629993539403826)):
+        if not (weeb_role := guild.get_role(self.bot.role_ids.get("weeb"))):
             self.bot.logger.warning(
                 "Could not fetch UiO Gaming's weeb role."
                 + "If the bot does not have access to the UiO Gaming server, this function won't work. "
@@ -139,10 +165,41 @@ class SocialCredit(commands.Cog):
 
         await self.bot.wait_until_ready()
 
+    @tasks.loop(minutes=10)
+    @misc_utils.log_errors
+    async def voice_activity(self):
+        """
+        Rewards users for talking in voice channels and punishes users for sitting in the AFK channel
+        """
+
+        if not (guild := self.bot.get_guild(self.bot.UIO_GAMING_GUILD_ID)):
+            return
+
+        for channel in guild.voice_channels:
+            members = [member for member in channel.members if not member.bot]
+            if channel == guild.afk_channel:
+                for member in members:
+                    await self.social_punishment(member.id, self.AFK_POINTS, "afk")
+            elif len(members) > 1:
+                for member in members:
+                    await self.social_reward(member.id, self.VOICE_POINTS, "voice")
+
+    @voice_activity.before_loop
+    async def before_voice_activity(self):
+        """
+        Wait until bot cache is ready
+        """
+
+        await self.bot.wait_until_ready()
+
     async def cog_unload(self):
+        """
+        Stop the daily and voice loops when the cog is unloaded
+        """
+
         self.bot.logger.info("Unloading cog")
         self.fuck_uwu.cancel()
-        self.cursor.close()
+        self.voice_activity.cancel()
 
     @add_new_citizen
     async def social_punishment(self, user_id: int, points: int, reason: str):
@@ -157,7 +214,7 @@ class SocialCredit(commands.Cog):
         """
 
         self.bot.logger.info(f"{points} points deducted from {user_id} ({reason})")
-        self.cursor.execute(
+        await self.bot.db.execute(
             """
             UPDATE social_credit
             SET credit_score = credit_score - %s
@@ -179,7 +236,7 @@ class SocialCredit(commands.Cog):
         """
 
         self.bot.logger.info(f"{points} points given to {user_id} ({reason})")
-        self.cursor.execute(
+        await self.bot.db.execute(
             """
             UPDATE social_credit
             SET credit_score = credit_score + %s
@@ -193,36 +250,37 @@ class SocialCredit(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 2)
     @social_credit_group.command(name="credits", description="Sjekk hvor dårlig menneske du er")
-    async def credits(self, interaction: discord.Interaction, *, bruker: discord.Member | None = None):
+    @app_commands.rename(user="bruker")
+    @app_commands.describe(user="Brukeren du vil se poengsummen til. Standard er deg selv")
+    async def credits(self, interaction: discord.Interaction, *, user: discord.Member | None = None):
         """
         Check the social credit score of a given user
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
-        bruker (discord.Member | None): The user to check the score of. Defaults to the user who invoked the command
+        interaction (discord.Interaction): The slash command interaction
+        user (discord.Member | None): The user to check the score of. Defaults to the user who invoked the command
         """
 
-        if not bruker:
-            bruker = interaction.user
+        if not user:
+            user = interaction.user
 
-        self.cursor.execute(
+        result = await self.bot.db.fetchone(
             """
             SELECT * FROM social_credit
             WHERE user_id = %s
             """,
-            (bruker.id,),
+            (user.id,),
         )
-        result = self.cursor.fetchone()
 
         if not result:
             return await interaction.response.send_message(
-                embed=embed_templates.error_warning(f"{bruker.mention} er ikke registrert i databasen")
+                embed=embed_templates.error_warning(f"{user.mention} er ikke registrert i databasen")
             )
 
         db_user = CreditUser(*result)
 
-        embed = discord.Embed(description=(f"{bruker.mention} har `{db_user.credit_score}` social credits"))
+        embed = discord.Embed(description=(f"{user.mention} har `{db_user.credit_score}` social credits"))
         await interaction.response.send_message(embed=embed)
 
     @app_commands.checks.bot_has_permissions(embed_links=True)
@@ -234,21 +292,18 @@ class SocialCredit(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         await interaction.response.defer()
 
-        self.cursor.execute(
-            """
+        result = await self.bot.db.fetchall("""
             SELECT * FROM social_credit
             ORDER BY credit_score DESC
-            """
-        )
-        result = self.cursor.fetchall()
+            """)
 
         if not result:
-            return await interaction.send(
+            return await interaction.followup.send(
                 embed=embed_templates.error_warning("Ingen brukere er registrert i databasen")
             )
 
@@ -267,7 +322,7 @@ class SocialCredit(commands.Cog):
 
         Parameters
         ----------
-        message (discord.Message): The message object
+        message (discord.Message): The message to check
         """
 
         if message.author.bot:
@@ -287,10 +342,10 @@ class SocialCredit(commands.Cog):
 
         Parameters
         ----------
-        message (discord.Message): The message object
+        message (discord.Message): The message to check
         """
 
-        if message.channel.id == 754706204349038644:
+        if message.channel.id == self.bot.channel_ids.get("politics"):
             await self.social_punishment(message.author.id, 25, "politics")
 
     @roll(percent=25)
@@ -300,10 +355,10 @@ class SocialCredit(commands.Cog):
 
         Parameters
         ----------
-        message (discord.Message): The message object
+        message (discord.Message): The message to check
         """
 
-        if message.channel.id == 811606213665357824:
+        if message.channel.id == self.bot.channel_ids.get("member_chat"):
             await self.social_reward(message.author.id, 10, "member-chat")
 
     @roll(percent=50)
@@ -313,12 +368,12 @@ class SocialCredit(commands.Cog):
 
         Parameters
         ----------
-        message (discord.Message): The message object
+        message (discord.Message): The message to check
         """
 
         illegal_hours = [5, 6, 7, 8, 9]
 
-        if message.created_at.hour in illegal_hours:
+        if message.created_at.astimezone(self.bot.timezone).hour in illegal_hours:
             await self.social_punishment(message.author.id, 10, "early-bird")
 
     @roll(percent=50)
@@ -328,12 +383,12 @@ class SocialCredit(commands.Cog):
 
         Parameters
         ----------
-        message (discord.Message): The message object
+        message (discord.Message): The message to check
         """
 
         happy_hours = [1, 2, 3, 4]
 
-        if message.created_at.hour in happy_hours:
+        if message.created_at.astimezone(self.bot.timezone).hour in happy_hours:
             await self.social_reward(message.author.id, 10, "night-owl")
 
     async def robort_slur(self, message: discord.Message):
@@ -342,7 +397,7 @@ class SocialCredit(commands.Cog):
 
         Parameters
         ----------
-        message (discord.Message): The message object
+        message (discord.Message): The message to check
         """
 
         slurs = [
@@ -379,11 +434,11 @@ class SocialCredit(commands.Cog):
 
         Parameters
         ----------
-        message (discord.Message): The message object
+        message (discord.Message): The message to check
         """
 
         # This only works in the UiO Gaming server as well
-        if message.channel.id == 865970753748074576 and message.mentions:
+        if message.channel.id == self.bot.channel_ids.get("gullkorn") and message.mentions:
             for mention in message.mentions:
                 await self.social_punishment(mention.id, 10, "gullkorn")
 
@@ -394,33 +449,43 @@ class SocialCredit(commands.Cog):
 
         Parameters
         ----------
-        reaction (discord.Reaction): The reaction object
+        reaction (discord.Reaction): The reaction that was added
         user (discord.User | discord.Member): The user who reacted
         """
 
         if user.bot:
             return
 
-        if reaction.emoji == "⭐":
-            if reaction.message.author == user:
-                await self.social_punishment(user.id, 100, "self-star")
-            elif reaction.count == 3:
-                await self.social_punishment(
-                    user.id, (len(reaction.message.reactions) - 1) * 25, "remove already accumulated stars"
-                )
-                await self.social_reward(user.id, 25 * len(reaction.message.reactions), "add new stars")
+        if reaction.emoji != "⭐":
+            return
+
+        author = reaction.message.author
+        if author == user:
+            await self.social_punishment(user.id, 100, "self-star")
+        elif reaction.count == self.STAR_THRESHOLD:
+            await self.social_reward(author.id, self.STAR_THRESHOLD * self.POINTS_PER_STAR, "starred")
+        elif reaction.count > self.STAR_THRESHOLD:
+            await self.social_reward(author.id, self.POINTS_PER_STAR, "add star")
 
     @commands.Cog.listener("on_reaction_remove")
     async def on_star_remove(self, reaction: discord.Reaction, user: discord.User | discord.Member):
         """
-        Deducts points who have a star reaction removed from their message
+        Deducts points from users who have a star reaction removed from their message
+
+        Parameters
+        ----------
+        reaction (discord.Reaction): The reaction that was removed
+        user (discord.User | discord.Member): The user who removed it
         """
 
-        if user.bot:
+        if user.bot or reaction.emoji != "⭐" or reaction.message.author == user:
             return
 
-        if reaction.emoji == "⭐" and reaction.count >= 3:
-            await self.social_punishment(user.id, 25, "remove star")
+        author = reaction.message.author
+        if reaction.count == self.STAR_THRESHOLD - 1:
+            await self.social_punishment(author.id, self.STAR_THRESHOLD * self.POINTS_PER_STAR, "unstarred")
+        elif reaction.count >= self.STAR_THRESHOLD:
+            await self.social_punishment(author.id, self.POINTS_PER_STAR, "remove star")
 
 
 async def setup(bot: commands.Bot):
@@ -429,7 +494,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(SocialCredit(bot))
