@@ -21,7 +21,6 @@ dependencies = [
     "psycopg[binary]==3.3.*",
     "pypandoc==1.17.*",
     "pyyaml==6.0.*",
-    "regex==2026.9.29",
     "tzdata",  # This only needed if run on windows. I haven't set a version either to ensure it's up to date.
     "wordcloud==1.9.*",
     "yt-dlp==2026.10.21",
