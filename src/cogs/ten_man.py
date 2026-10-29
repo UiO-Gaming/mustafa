@@ -16,6 +16,7 @@ from discord.ext import commands
 from cogs.utils import embed_templates
 from cogs.utils.discord_utils import Lobby
 from cogs.utils.discord_utils import LobbyView
+from cogs.utils.discord_utils import open_lobby
 
 # Seconds without any interaction before the menus and buttons are disabled
 SELECTION_TIMEOUT = 300
@@ -32,7 +33,7 @@ class TenMan(commands.Cog):
         """
 
         self.bot = bot
-        self.active_lobbies = {}
+        self.active_lobbies: dict[int, Lobby] = {}
 
     ten_man_group = app_commands.Group(name="10man", description="For planlegging og arrangering av 10 mans")
 
@@ -48,43 +49,7 @@ class TenMan(commands.Cog):
         interaction (discord.Interaction): Slash command context object
         """
 
-        if lobby := self.active_lobbies.get(str(interaction.user.id), None):
-            if lobby.ends < discord.utils.utcnow():
-                self.active_lobbies.pop(str(interaction.user.id))
-            else:
-                return await interaction.response.send_message(
-                    embed=embed_templates.error_warning(
-                        "Du hoster allerede en lobby",
-                    )
-                )
-
-        for lobby in self.active_lobbies.values():
-            if lobby.ends > discord.utils.utcnow() and any(p.id == interaction.user.id for p in lobby.players):
-                return await interaction.response.send_message(
-                    embed=embed_templates.error_warning(
-                        "Du er allerede i en lobby",
-                    )
-                )
-
-        self.active_lobbies[str(interaction.user.id)] = Lobby(
-            host=interaction.user,
-            players=[interaction.user],
-            ends=discord.utils.utcnow() + timedelta(minutes=30),
-            kicked_players=[],
-        )
-
-        time_left = discord.utils.format_dt(self.active_lobbies[str(interaction.user.id)].ends, "R")
-
-        embed = discord.Embed(
-            title="10 Man Lobby",
-            description=f"Lobbyen stenger {time_left}. Bli med innen da!",
-            color=interaction.user.color,
-        )
-        embed.set_author(name=interaction.user.global_name, icon_url=interaction.user.avatar)
-        embed.add_field(name="Spillere", value=f"* {interaction.user.mention}", inline=False)
-        view = TenManView(self.active_lobbies[str(interaction.user.id)], self.bot)
-        await interaction.response.send_message(embed=embed, view=view)
-        view.message = await interaction.original_response()
+        await open_lobby(interaction, self.active_lobbies, TenManView, "10 Man Lobby", timedelta(minutes=30))
 
 
 class TenManView(LobbyView):

@@ -15,6 +15,7 @@ from cogs.utils import embed_templates
 from cogs.utils import misc_utils
 from cogs.utils.discord_utils import Lobby
 from cogs.utils.discord_utils import LobbyView
+from cogs.utils.discord_utils import open_lobby
 
 
 class CS2Bingo(commands.Cog):
@@ -28,7 +29,7 @@ class CS2Bingo(commands.Cog):
         """
 
         self.bot = bot
-        self.active_lobbies = {}  # dict[str, discord_utils.Lobby]
+        self.active_lobbies: dict[int, Lobby] = {}
 
     bingo_group = app_commands.Group(name="cs2bingo", description="Bingo commands for CS2")
 
@@ -44,39 +45,7 @@ class CS2Bingo(commands.Cog):
         interaction (discord.Interaction): Slash command context object
         """
 
-        if lobby := self.active_lobbies.get(str(interaction.user.id), None):
-            if lobby.ends < discord.utils.utcnow():
-                self.active_lobbies.pop(str(interaction.user.id))
-            else:
-                return await interaction.response.send_message(
-                    embed=embed_templates.error_warning("Du hoster allerede en lobby")
-                )
-
-        for lobby in self.active_lobbies.values():
-            if lobby.ends > discord.utils.utcnow() and any(p.id == interaction.user.id for p in lobby.players):
-                return await interaction.response.send_message(
-                    embed=embed_templates.error_warning("Du er allerede i en lobby")
-                )
-
-        self.active_lobbies[str(interaction.user.id)] = Lobby(
-            host=interaction.user,
-            players=[interaction.user],
-            ends=discord.utils.utcnow() + timedelta(minutes=10),
-            kicked_players=[],
-        )
-
-        time_left = discord.utils.format_dt(self.active_lobbies[str(interaction.user.id)].ends, "R")
-
-        embed = discord.Embed(
-            title="Bingolobby",
-            description=f"Lobbyen stenger {time_left}. Bli med innen da!",
-            color=interaction.user.color,
-        )
-        embed.set_author(name=interaction.user.global_name, icon_url=interaction.user.avatar)
-        embed.add_field(name="Spillere", value=f"* {interaction.user.mention}", inline=False)
-        view = BingoView(self.active_lobbies[str(interaction.user.id)], self.bot)
-        await interaction.response.send_message(embed=embed, view=view)
-        view.message = await interaction.original_response()
+        await open_lobby(interaction, self.active_lobbies, BingoView, "Bingolobby", timedelta(minutes=10))
 
 
 class BingoGenerator:

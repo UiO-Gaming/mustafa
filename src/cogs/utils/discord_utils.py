@@ -1,5 +1,7 @@
 from dataclasses import dataclass
+from dataclasses import field
 from datetime import datetime
+from datetime import timedelta
 from io import BytesIO
 
 import discord
@@ -186,7 +188,56 @@ class Lobby:
     host: discord.User
     players: list[discord.User]
     ends: datetime
-    kicked_players: list[discord.User]
+    kicked_players: set[int] = field(default_factory=set)
+    closed: bool = False
+
+
+async def open_lobby(
+    interaction: discord.Interaction,
+    lobbies: dict[int, Lobby],
+    view_class: type["LobbyView"],
+    title: str,
+    duration: timedelta,
+):
+    """
+    Open a lobby hosted by the invoking user, unless they already host or are in an open lobby
+
+    Parameters
+    ----------
+    interaction (discord.Interaction): Slash command context object
+    lobbies (dict[int, Lobby]): The cog's lobbies by host ID. The new lobby is added to it
+    view_class (type[LobbyView]): The view to show the lobby with
+    title (str): The title of the lobby message
+    duration (timedelta): How long the lobby stays open
+    """
+
+    for host_id in [host_id for host_id, lobby in lobbies.items() if lobby.closed]:
+        del lobbies[host_id]
+
+    if interaction.user.id in lobbies:
+        return await interaction.response.send_message(
+            embed=embed_templates.error_warning("Du hoster allerede en lobby")
+        )
+
+    if any(interaction.user in lobby.players for lobby in lobbies.values()):
+        return await interaction.response.send_message(embed=embed_templates.error_warning("Du er allerede i en lobby"))
+
+    lobby = Lobby(host=interaction.user, players=[interaction.user], ends=discord.utils.utcnow() + duration)
+    lobbies[interaction.user.id] = lobby
+
+    time_left = discord.utils.format_dt(lobby.ends, "R")
+    embed = discord.Embed(
+        title=title, description=f"Lobbyen stenger {time_left}. Bli med innen da!", color=interaction.user.color
+    )
+    embed.set_author(name=interaction.user.global_name, icon_url=interaction.user.avatar)
+    embed.add_field(name="Spillere", value=f"* {interaction.user.mention}", inline=False)
+
+    view = view_class(lobby, interaction.client)
+    await interaction.response.send_message(embed=embed, view=view)
+
+    # Edit the message with the bot's own token later, since the interaction's token expires after 15 minutes
+    response = await interaction.original_response()
+    view.message = interaction.channel.get_partial_message(response.id)
 
 
 class LobbyView(discord.ui.View):
@@ -196,7 +247,7 @@ class LobbyView(discord.ui.View):
 
         self.lobby = lobby
         self.bot = bot
-        self.message: discord.Message | None = None
+        self.message: discord.PartialMessage | None = None
 
         self.kick_menu = _KickSelectMenu(self)
         self.add_item(self.kick_menu)
@@ -206,13 +257,14 @@ class LobbyView(discord.ui.View):
         if self.message:
             try:
                 await self.message.edit(view=self)
-            except discord.NotFound:
-                pass
+            except discord.HTTPException:
+                pass  # The message has been deleted
 
     async def end_lobby(self):
-        self.lobby.ends = discord.utils.utcnow()
+        self.lobby.closed = True
         for item in self.children:
             item.disabled = True
+        self.stop()
 
     async def rerender_players(self, interaction: discord.Interaction):
         self.kick_menu.update_options()
@@ -225,7 +277,7 @@ class LobbyView(discord.ui.View):
 
     @discord.ui.button(label="Bli med", style=discord.ButtonStyle.blurple)
     async def join_lobby(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if discord.utils.utcnow() > self.lobby.ends:
+        if self.lobby.closed:
             embed = embed_templates.error_warning("Lobbyen har allerede startet")
             return await interaction.response.send_message(embed=embed, ephemeral=True, delete_after=10)
 
@@ -289,7 +341,7 @@ class LobbyView(discord.ui.View):
             embed = embed_templates.error_warning("Bare hosten kan slette lobbyen")
             return await interaction.response.send_message(embed=embed, ephemeral=True, delete_after=10)
 
-        self.lobby.ends = discord.utils.utcnow()
+        await self.end_lobby()
         await interaction.message.delete()
 
         embed = embed_templates.success("Lobbyen har blitt slettet")
@@ -323,7 +375,7 @@ class _KickSelectMenu(discord.ui.Select):
             embed = embed_templates.error_warning("Du kan ikke kicke deg selv")
             return await interaction.response.send_message(embed=embed, ephemeral=True, delete_after=10)
 
-        self.parent_view.lobby.kicked_players.append(int(interaction.data["values"][0]))
+        self.parent_view.lobby.kicked_players.add(int(interaction.data["values"][0]))
 
         # Remove the player from the lobby
         # Since we only have the ID, we have to iterate through the list
