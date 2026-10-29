@@ -12,6 +12,8 @@ from cogs.utils import embed_templates
 
 @dataclass
 class FunReply:
+    """A reply the bot sends when a message matches its pattern"""
+
     name: str
     pattern: str
     reply: str
@@ -20,6 +22,8 @@ class FunReply:
 
 @dataclass
 class FunReplySettings:
+    """Settings changed with /autosvar. None means the reply's default is used"""
+
     enabled: bool = True
     cooldown: int | None = None
     chance: int | None = None
@@ -161,7 +165,7 @@ class FunReplies(commands.Cog):
 
         Parameters
         ----------
-        message (discord.Message): Message object to check for triggers to
+        message (discord.Message): The message to check for triggers
         """
 
         if message.author.bot:
@@ -177,12 +181,12 @@ class FunReplies(commands.Cog):
 
         Parameters
         ----------
-        message (discord.Message): The message object to check for triggers
+        message (discord.Message): The message to check for triggers
         fun_reply (FunReply): The fun reply to check
 
         Returns
         ----------
-        bool: Whether or not the reply was triggered
+        (bool): Whether or not the reply was triggered
         """
 
         settings = self.get_settings(fun_reply.name)
@@ -220,7 +224,7 @@ class FunReplies(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         name (str): The name of the fun reply
         """
 
@@ -240,7 +244,7 @@ class FunReplies(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         name (str): The name of the fun reply
         """
 
@@ -264,7 +268,7 @@ class FunReplies(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         name (str): The name of the fun reply
         seconds (int | None): The cooldown in seconds. None resets it to the default
         """
@@ -290,7 +294,7 @@ class FunReplies(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         name (str): The name of the fun reply
         percent (int | None): The chance in percent. None resets it to the default
         """
@@ -309,7 +313,7 @@ class FunReplies(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         lines = []
@@ -328,7 +332,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(FunReplies(bot))

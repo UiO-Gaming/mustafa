@@ -59,7 +59,7 @@ class Gullkorn(commands.Cog):
 
         Returns
         ----------
-        str: The input data formatted into a prettified string
+        (str): The input data formatted into a prettified string
         """
 
         formatted_string = ""
@@ -79,7 +79,7 @@ class Gullkorn(commands.Cog):
 
         Parameters
         ----------
-        message (discord.Message): Message object to check for triggers to
+        message (discord.Message): The message that was sent
         """
 
         if message.author.bot or message.channel.id != self.bot.channel_ids.get("gullkorn") or not message.mentions:
@@ -121,8 +121,8 @@ class Gullkorn(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
-        user (discord.Member, optional): Discord user to fetch stats for. Defaults to None.
+        interaction (discord.Interaction): The slash command interaction
+        user (discord.Member | None): The user to fetch stats for. Defaults to the invoking user
         """
 
         # This looks kinda ugly, ngl
@@ -186,7 +186,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(Gullkorn(bot))

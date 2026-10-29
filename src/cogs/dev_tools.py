@@ -29,7 +29,7 @@ class DevTools(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         """
 
         process = await asyncio.create_subprocess_exec(
@@ -56,7 +56,7 @@ class DevTools(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         channel (int): The channel ID to send the message to
         text (str): The text to send
         """
@@ -80,7 +80,7 @@ class DevTools(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         activity_type (str): The type of activity to set the bot's status to
         message (str): The message to set the bot's status to
         status_type (str): The type of status to set the bot's status to
@@ -111,7 +111,7 @@ class DevTools(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         guild_id (int): The ID of the guild to leave
         """
 
@@ -155,7 +155,7 @@ class DevTools(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         """
 
         async with self.bot.http_session.get("https://wtfismyip.com/json") as response:
@@ -177,7 +177,7 @@ class DevTools(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         """
 
         if not ctx.invoked_subcommand:
@@ -190,7 +190,7 @@ class DevTools(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         cog (str): The name of the cog to disable
         """
 
@@ -214,7 +214,7 @@ class DevTools(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         cog (str): The name of the cog to enable
         """
 
@@ -238,7 +238,7 @@ class DevTools(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         cog (str): The name of the cog to reload
         """
 
@@ -262,7 +262,7 @@ class DevTools(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         """
 
         extensions = [f"cogs.{file[:-3]}" for file in listdir("./src/cogs") if file.endswith(".py")]
@@ -278,7 +278,7 @@ class DevTools(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         """
 
         failed = await self.reload_extensions(list(self.bot.extensions))
@@ -339,7 +339,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(DevTools(bot))

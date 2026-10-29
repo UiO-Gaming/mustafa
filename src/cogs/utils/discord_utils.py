@@ -20,7 +20,7 @@ async def send_as_txt_file(interaction: discord.Interaction, content: str, filen
 
     Parameters
     ----------
-    interaction (discord.Interaction): Slash command context object
+    interaction (discord.Interaction): The interaction that triggered this
     content (str): String that's too long to send
     filename (str): Name of the file as shown in Discord
     """
@@ -34,11 +34,11 @@ async def get_file_bytesio(file: discord.Attachment | discord.Asset) -> BytesIO:
     Returns a BytesIO object of the file
 
     Parameters
-    -----------
-    file (discord.Attatchment | discord.Asset): The file to get the BytesIO object of
+    ----------
+    file (discord.Attachment | discord.Asset): The file to get the BytesIO object of
 
     Returns
-    -----------
+    ----------
     (BytesIO): The file as a BytesIO object
     """
 
@@ -62,11 +62,13 @@ class ScrollerButton(discord.ui.Button):
     ):
         """
         Parameters
-        -----------
+        ----------
         paginator (Paginator): The paginator object that contains the data to be paginated
         button_action (callable): The function that returns the requested page
         content_constructor (callable): A function that takes a paginator object and a page number and returns an embed
-        owner (discord.User|discord.Member): The user that invoked the paginator. Only this user can use the button
+        owner (discord.User | discord.Member): The user that invoked the paginator. Only this user can use the button
+        label (str): The text on the button
+        disabled (bool): Whether the button starts out disabled
         """
 
         super().__init__(label=label, disabled=disabled)
@@ -80,8 +82,8 @@ class ScrollerButton(discord.ui.Button):
         What to do when the button is pressed
 
         Parameters
-        -----------
-        interaction (discord.Interaction): Slash command context object
+        ----------
+        interaction (discord.Interaction): The interaction that triggered this
         """
 
         if interaction.user.id != self.owner.id:
@@ -101,18 +103,18 @@ class Scroller(discord.ui.View):
     """View that allows scrolling through pages of data using the pagination module"""
 
     def __init__(
-        self, paginatior: Paginator, owner: discord.User | discord.Member, content_constructor: callable = None
+        self, paginator: Paginator, owner: discord.User | discord.Member, content_constructor: callable = None
     ):
         """
         Parameters
-        -----------
+        ----------
         paginator (Paginator): The paginator object that contains the data to be paginated
-        owner (discord.User|discord.Member): The user that invoked the paginator. Only this user can use the buttons
+        owner (discord.User | discord.Member): The user that invoked the paginator. Only this user can use the buttons
         content_constructor (callable): A function that takes a paginator object and a page number and returns an embed
         """
 
         super().__init__()
-        self.paginator = paginatior
+        self.paginator = paginator
         self.content_constructor = content_constructor if content_constructor else self.__default_content_constructor
 
         self.add_item(
@@ -161,7 +163,7 @@ class Scroller(discord.ui.View):
         Constructs the embed to be displayed
 
         Parameters
-        -----------
+        ----------
         base_embed (discord.Embed): The base embed to add fields to
         """
 
@@ -173,9 +175,12 @@ class Scroller(discord.ui.View):
 
         Parameters
         ----------
-        paginator (Paginator): Paginator dataclass
-        page (list): List of streaks to display on a page
-        embed (discord.Embed): Embed to add fields to
+        page (list): The items to show on the page
+        embed (discord.Embed): The embed to add the page to
+
+        Returns
+        ----------
+        (discord.Embed): The embed with the page added
         """
 
         embed.description = "\n".join(page)
@@ -185,6 +190,8 @@ class Scroller(discord.ui.View):
 
 @dataclass
 class Lobby:
+    """Players gathering before an activity starts. Closed once it starts, is deleted or times out"""
+
     host: discord.User
     players: list[discord.User]
     ends: datetime
@@ -204,7 +211,7 @@ async def open_lobby(
 
     Parameters
     ----------
-    interaction (discord.Interaction): Slash command context object
+    interaction (discord.Interaction): The interaction that triggered this
     lobbies (dict[int, Lobby]): The cog's lobbies by host ID. The new lobby is added to it
     view_class (type[LobbyView]): The view to show the lobby with
     title (str): The title of the lobby message
@@ -241,7 +248,16 @@ async def open_lobby(
 
 
 class LobbyView(discord.ui.View):
+    """Lobby players can join, leave and be kicked from. Subclasses decide what starting it does"""
+
     def __init__(self, lobby: Lobby, bot: commands.Bot):
+        """
+        Parameters
+        ----------
+        lobby (Lobby): The lobby to show
+        bot (commands.Bot): The bot instance
+        """
+
         lobby_end = (lobby.ends - discord.utils.utcnow()).total_seconds()
         super().__init__(timeout=lobby_end)
 
@@ -253,6 +269,10 @@ class LobbyView(discord.ui.View):
         self.add_item(self.kick_menu)
 
     async def on_timeout(self):
+        """
+        Close the lobby and disable its buttons when it times out
+        """
+
         await self.end_lobby()
         if self.message:
             try:
@@ -261,12 +281,24 @@ class LobbyView(discord.ui.View):
                 pass  # The message has been deleted
 
     async def end_lobby(self):
+        """
+        Close the lobby, disable its buttons and stop listening for interactions
+        """
+
         self.lobby.closed = True
         for item in self.children:
             item.disabled = True
         self.stop()
 
     async def rerender_players(self, interaction: discord.Interaction):
+        """
+        Update the player list and the kick menu in the lobby message
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): The interaction that triggered this
+        """
+
         self.kick_menu.update_options()
         embed = interaction.message.embeds[0].set_field_at(
             0,
@@ -277,6 +309,15 @@ class LobbyView(discord.ui.View):
 
     @discord.ui.button(label="Bli med", style=discord.ButtonStyle.blurple)
     async def join_lobby(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """
+        Add the user to the lobby
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): The interaction that triggered this
+        button (discord.ui.Button): The button that was pressed
+        """
+
         if self.lobby.closed:
             embed = embed_templates.error_warning("Lobbyen har allerede startet")
             return await interaction.response.send_message(embed=embed, ephemeral=True, delete_after=10)
@@ -303,6 +344,15 @@ class LobbyView(discord.ui.View):
 
     @discord.ui.button(label="Start", style=discord.ButtonStyle.green)
     async def start_lobby(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """
+        Close the lobby. Subclasses override this to start their activity
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): The interaction that triggered this
+        button (discord.ui.Button): The button that was pressed
+        """
+
         if interaction.user != self.lobby.host:
             embed = embed_templates.error_warning("Bare hosten kan starte")
             return await interaction.response.send_message(embed=embed, ephemeral=True, delete_after=10)
@@ -319,6 +369,15 @@ class LobbyView(discord.ui.View):
 
     @discord.ui.button(label="Forlat", style=discord.ButtonStyle.gray)
     async def leave_lobby(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """
+        Remove the user from the lobby
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): The interaction that triggered this
+        button (discord.ui.Button): The button that was pressed
+        """
+
         if interaction.user == self.lobby.host:
             embed = embed_templates.error_warning(
                 "Du kan ikke forlate lobbyen som host. Slett lobbyen i stedet om ønskelig!"
@@ -337,6 +396,15 @@ class LobbyView(discord.ui.View):
 
     @discord.ui.button(label="Slett", style=discord.ButtonStyle.red)
     async def delete_lobby(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """
+        Close the lobby and delete its message
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): The interaction that triggered this
+        button (discord.ui.Button): The button that was pressed
+        """
+
         if interaction.user != self.lobby.host:
             embed = embed_templates.error_warning("Bare hosten kan slette lobbyen")
             return await interaction.response.send_message(embed=embed, ephemeral=True, delete_after=10)
@@ -349,7 +417,15 @@ class LobbyView(discord.ui.View):
 
 
 class _KickSelectMenu(discord.ui.Select):
+    """Menu the host uses to kick players from the lobby"""
+
     def __init__(self, parent_view: LobbyView):
+        """
+        Parameters
+        ----------
+        parent_view (LobbyView): The lobby view the menu belongs to
+        """
+
         self.parent_view = parent_view
         super().__init__(placeholder="Kick en spiller", max_values=1, min_values=1)
         self.update_options()
@@ -367,6 +443,14 @@ class _KickSelectMenu(discord.ui.Select):
         ]
 
     async def callback(self, interaction: discord.Interaction):
+        """
+        Kick the selected player from the lobby
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): The interaction that triggered this
+        """
+
         if interaction.user != self.parent_view.lobby.host:
             embed = embed_templates.error_warning("Bare hosten kan kicke spillere")
             return await interaction.response.send_message(embed=embed, ephemeral=True, delete_after=10)
@@ -463,6 +547,12 @@ class TempVoiceHelper:
     ):
         """
         Listen for disconnects from the temporary voice channels
+
+        Parameters
+        ----------
+        member (discord.Member): The member whose voice state changed
+        before (discord.VoiceState): The voice state before the change
+        after (discord.VoiceState): The voice state after the change
         """
 
         for channel in (before.channel, after.channel):
@@ -537,13 +627,13 @@ class TempVoiceHelper:
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
+        interaction (discord.Interaction): The interaction that triggered this
         name (str): The name of the channel
         limit (int): The user limit of the channel
 
         Returns
         ----------
-        (discord.VoiceChannel) | None: The object for the newly created channel. None if failed
+        (discord.VoiceChannel | None): The new channel. None if it couldn't be created
         """
 
         # Get the UiO Gaming server's VC category. If the command is not invoked in that server it should still be fine
@@ -592,13 +682,13 @@ class TempVoiceHelper:
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
+        interaction (discord.Interaction): The interaction that triggered this
         channel (discord.VoiceChannel): The channel the users should be moved to
         users (list[discord.User]): A list of users to be moved
 
         Returns
         ----------
-        (list[discord.User]) | None: A list of users that failed to be moved. None if all users were moved
+        (list[discord.User]): The users that couldn't be moved. Empty if everyone was moved
         """
 
         failed_users = []

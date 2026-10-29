@@ -52,7 +52,7 @@ class MCWhitelist(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         minecraft_username (str): Minecraft username
         """
 
@@ -129,7 +129,7 @@ class MCWhitelist(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         # Check if the discord user is in the db
@@ -190,7 +190,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(MCWhitelist(bot))

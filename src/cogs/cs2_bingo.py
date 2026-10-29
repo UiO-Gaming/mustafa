@@ -42,7 +42,7 @@ class CS2Bingo(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         await open_lobby(interaction, self.active_lobbies, BingoView, "Bingolobby", timedelta(minutes=10))
@@ -64,6 +64,19 @@ class BingoGenerator:
 
     @classmethod
     async def sample_cells(cls, players: list[str], bot: commands.Bot) -> dict[str, list[str]]:
+        """
+        Pick 25 squares for each player's sheet
+
+        Parameters
+        ----------
+        players (list[str]): The Discord IDs of the players
+        bot (commands.Bot): The bot instance
+
+        Returns
+        ----------
+        (dict[str, list[str]]): Each player's squares, keyed by their Discord ID
+        """
+
         assert 0 < len(players) <= 10
 
         default_space = list(cls.CELLS["all"])
@@ -97,6 +110,7 @@ class BingoGenerator:
         Parameters
         ----------
         players (list[discord.Member]): The players to generate sheets for
+        bot (commands.Bot): The bot instance
 
         Returns
         ----------
@@ -118,6 +132,19 @@ class BingoGenerator:
 
     @classmethod
     def generate_sheet(cls, sample_space: list, image: np.ndarray) -> bytes:
+        """
+        Draw the squares on a bingo sheet
+
+        Parameters
+        ----------
+        sample_space (list): The squares to draw. Emptied as they are drawn
+        image (np.ndarray): The empty bingo sheet
+
+        Returns
+        ----------
+        (bytes): The sheet as PNG data
+        """
+
         image = image.copy()
 
         # start = 8, 294
@@ -141,12 +168,30 @@ class BingoGenerator:
 
 
 class BingoView(LobbyView):
+    """Bingo lobby that sends every player a bingo sheet when started"""
+
     def __init__(self, lobby: Lobby, bot: commands.Bot):
+        """
+        Parameters
+        ----------
+        lobby (Lobby): The lobby to show
+        bot (commands.Bot): The bot instance
+        """
+
         super().__init__(lobby, bot)
 
     @discord.ui.button(label="Start", style=discord.ButtonStyle.green)
     @override
     async def start_lobby(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """
+        Close the lobby and send every player their bingo sheet
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): The interaction that triggered this
+        button (discord.ui.Button): The button that was pressed
+        """
+
         if interaction.user != self.lobby.host:
             embed = embed_templates.error_warning("Bare hosten kan starte bingoen")
             return await interaction.response.send_message(embed=embed, ephemeral=True, delete_after=10)
@@ -184,7 +229,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(CS2Bingo(bot))

@@ -19,9 +19,17 @@ class TempVoice(commands.Cog):
         self.temp_voice_helper = TempVoiceHelper(bot)
 
     async def cog_load(self):
+        """
+        Set up the temporary voice channel helper before the cog is used
+        """
+
         await self.temp_voice_helper.start()
 
     async def cog_unload(self):
+        """
+        Stop checking for inactive temporary voice channels when the cog is unloaded
+        """
+
         self.temp_voice_helper.check_temp_vc_channels.cancel()
 
     @commands.Cog.listener()
@@ -30,6 +38,12 @@ class TempVoice(commands.Cog):
     ):
         """
         Listen for disconnects from the temporary voice channels
+
+        Parameters
+        ----------
+        member (discord.Member): The member whose voice state changed
+        before (discord.VoiceState): The voice state before the change
+        after (discord.VoiceState): The voice state after the change
         """
 
         await self.temp_voice_helper.on_voice_state_update(member, before, after)
@@ -50,7 +64,7 @@ class TempVoice(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
+        interaction (discord.Interaction): The slash command interaction
         name (str): The name of the channel
         limit (int): The user limit of the channel. 0 means no limit
         """
@@ -72,7 +86,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(TempVoice(bot))

@@ -145,6 +145,10 @@ class Birthday(commands.Cog):
             await channel.send(message)
 
     async def cog_unload(self):
+        """
+        Stop the birthday check when the cog is unloaded
+        """
+
         self.bot.logger.info("Unloading cog")
         self.birthday_check.cancel()
 
@@ -270,7 +274,7 @@ class Birthday(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         day (int): Day of the month
         month (int): Month of the year
         year (int): Year
@@ -310,7 +314,7 @@ class Birthday(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         await self.bot.db.execute("DELETE FROM birthdays WHERE discord_id = (%s)", (interaction.user.id,))
@@ -329,8 +333,8 @@ class Birthday(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
-        user (discord.Member | discord.User | None): The user to show the birthday of. Defaults to None.
+        interaction (discord.Interaction): The slash command interaction
+        user (discord.Member | discord.User | None): The user to show the birthday of. Defaults to the invoking user
         """
 
         if not user:
@@ -380,7 +384,7 @@ class Birthday(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         if not interaction.guild:
@@ -424,7 +428,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(Birthday(bot))

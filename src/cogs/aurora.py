@@ -25,6 +25,10 @@ class Aurora(commands.Cog):
         self.aurora_alarm.start()
 
     def cog_unload(self):
+        """
+        Stop the aurora alarm when the cog is unloaded
+        """
+
         self.bot.logger.info("Unloading cog")
         self.aurora_alarm.cancel()
 
@@ -33,8 +37,8 @@ class Aurora(commands.Cog):
         Get the current aurora and cloud cover forecast for Chateau Neuf
 
         Returns
-        -------
-        (dict) The forecast data | None
+        ----------
+        (dict | None): The forecast data. None if it couldn't be fetched
         """
 
         async with self.bot.http_session.get(
@@ -130,7 +134,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(Aurora(bot))

@@ -65,6 +65,10 @@ class Streak(commands.Cog):
             """)
 
     async def cog_unload(self):
+        """
+        Stop the loops and save the cached streaks when the cog is unloaded
+        """
+
         self.bot.logger.info("Unloading cog")
         self.insert_cache_loop.cancel()
         self.streak_check.cancel()
@@ -233,7 +237,7 @@ class Streak(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction
+        interaction (discord.Interaction): The slash command interaction
         user (discord.Member | discord.User | None): The user to get the streak for
         """
 
@@ -287,7 +291,7 @@ class Streak(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction
+        interaction (discord.Interaction): The slash command interaction
         """
 
         await interaction.response.defer()
@@ -318,7 +322,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(Streak(bot))

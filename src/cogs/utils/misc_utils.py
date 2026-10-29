@@ -114,7 +114,7 @@ class Paginator:
 
         Returns
         ----------
-        (list|None): The page you requested
+        (list | None): The page you requested
         """
 
         if page < 1 or page > self.total_page_count:

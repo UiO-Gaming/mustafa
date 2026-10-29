@@ -26,6 +26,10 @@ class WebsiteEvents(commands.Cog):
         )
 
     async def cog_load(self):
+        """
+        Start syncing events once the bot is ready
+        """
+
         asyncio.create_task(self.after_ready())
 
     async def after_ready(self):
@@ -153,7 +157,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(WebsiteEvents(bot))

@@ -43,6 +43,10 @@ class Bot(commands.Bot):
     """UiO Gaming Bot"""
 
     def __init__(self):
+        """
+        Read the config and disable the cogs whose credentials are missing
+        """
+
         super().__init__(
             command_prefix=commands.when_mentioned_or(config["bot"]["prefix"]),
             case_insensitive=True,
@@ -103,6 +107,10 @@ class Bot(commands.Bot):
         misc_utils.MIDNIGHT = datetime.time(tzinfo=midnight_tz)
 
     async def setup_hook(self):
+        """
+        Open the HTTP session and database pool, load the cogs and sync the slash commands
+        """
+
         self.http_session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15))
         if self.db_pool:
             await self.db_pool.open(wait=True, timeout=30)
@@ -127,6 +135,10 @@ class Bot(commands.Bot):
             await self.tree.sync(guild=discord.Object(id=self.guild_id))
 
     async def close(self):
+        """
+        Close the HTTP session and database pool when the bot shuts down
+        """
+
         await super().close()
         if hasattr(self, "http_session"):
             await self.http_session.close()
@@ -136,6 +148,10 @@ class Bot(commands.Bot):
     async def configure_db_connection(self, conn):
         """
         Sets the session time zone of every new database connection to the bot's time zone
+
+        Parameters
+        ----------
+        conn (psycopg.AsyncConnection): The new database connection
         """
 
         if self.timezone_name:
@@ -165,13 +181,13 @@ class Bot(commands.Bot):
         Check if the credentials are valid. Removes cogs from the class' `cog_files` attribute if not
 
         Parameters
-        -----------
+        ----------
         credentials (dict): The credentials to check
         dependant_cogs (set): The cogs that depend on the credentials
 
         Returns
         ----------
-        bool: Whether the credentials are valid. If not, the dependant cogs are disabled.
+        (bool): Whether the credentials are valid. If not, the dependant cogs are disabled.
         """
 
         for credential in credentials.values():
@@ -188,6 +204,10 @@ bot = Bot()
 
 @bot.event
 async def on_ready():
+    """
+    Print the bot's info and set its presence once it's connected
+    """
+
     if not hasattr(bot, "uptime"):
         bot.uptime = time()
 

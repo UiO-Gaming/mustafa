@@ -27,7 +27,7 @@ class Errors(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         """
 
         self.bot.logger.info(
@@ -45,8 +45,8 @@ class Errors(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
-        command (app_commands.Command | app_commands.ContextMenu): Command object
+        interaction (discord.Interaction): The slash command interaction
+        command (app_commands.Command | app_commands.ContextMenu): The command that was run
         """
 
         self.bot.logger.info(
@@ -62,8 +62,8 @@ class Errors(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
-        error (commands.CommandError): Eror context object
+        ctx (commands.Context): The command context
+        error (commands.CommandError): The error the command raised
         """
 
         # Let the user retry a command that failed without waiting for its cooldown.
@@ -126,8 +126,8 @@ class Errors(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
-        error (app_commands.AppCommandError): Eror context object
+        interaction (discord.Interaction): The slash command interaction
+        error (app_commands.AppCommandError): The error the command raised
         """
 
         if not interaction.response.is_done():
@@ -187,7 +187,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(Errors(bot))

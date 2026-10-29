@@ -58,7 +58,7 @@ class Misc(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         await interaction.response.send_message("<:sven:762725919604473866> Weebs 👉 <#803596668129509417>")
@@ -74,7 +74,7 @@ class Misc(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         text (str): Text to translate
         """
 
@@ -114,8 +114,8 @@ class Misc(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
-        user (discord.Member | discord.User | None): The user you want to see the dicksize of. Defaults to author
+        interaction (discord.Interaction): The slash command interaction
+        user (discord.Member | discord.User | None): The user to measure. Defaults to the invoking user
         """
 
         if not user:
@@ -149,7 +149,7 @@ class Misc(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         course_code (str): UiO course code
         """
 
@@ -175,24 +175,24 @@ class Misc(commands.Cog):
     @app_commands.command(name="klappifiser", description="Klappifiser tekst")
     @app_commands.rename(text="tekst")
     @app_commands.describe(text="Teksten som skal klappifiseres")
-    async def clapify(self, interation: discord.Interaction, text: str):
+    async def clapify(self, interaction: discord.Interaction, text: str):
         """
         Add clap emoji between every word of a string
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         text (str): Text to clapify
         """
 
         if len(text) >= 1000:
             embed = embed_templates.error_warning("Teksten er for lang")
-            return await interation.response.send_message(embed=embed)
+            return await interaction.response.send_message(embed=embed)
 
         text = text.replace(" ", "👏")
 
-        embed = discord.Embed(color=interation.client.user.color, description=f"**{text.upper()}**")
-        await interation.response.send_message(embed=embed)
+        embed = discord.Embed(color=interaction.client.user.color, description=f"**{text.upper()}**")
+        await interaction.response.send_message(embed=embed)
 
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 2)
@@ -210,7 +210,7 @@ class Misc(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         text (str): Text to mock
         user (discord.User | None): User to mention in the reply
         """
@@ -241,7 +241,7 @@ class Misc(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         country_code (str): Country code
         year (int): Year
         """
@@ -287,7 +287,7 @@ class Misc(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         user (discord.Member): User to match with
         """
 
@@ -367,7 +367,7 @@ class Misc(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         links = [
@@ -390,7 +390,7 @@ class Misc(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         random_result = random.randint(1, 100)  # We use 1 and not 0 to avoid a tie
@@ -411,7 +411,7 @@ class Misc(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         text (str): Human-readable time string
         """
 
@@ -439,7 +439,7 @@ class Misc(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         copypasta = (
@@ -461,7 +461,7 @@ class Misc(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         excuses = [
@@ -489,7 +489,7 @@ class Misc(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         bushisms = [
@@ -609,7 +609,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(Misc(bot))

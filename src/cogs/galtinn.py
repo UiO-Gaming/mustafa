@@ -65,7 +65,9 @@ class Galtinn(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
+        galtinn_username (str | None): The Galtinn username to look up
+        discord_user (discord.User | None): The Discord user to look up. Defaults to the invoking user
         """
 
         if discord_user and galtinn_username:
@@ -147,7 +149,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(Galtinn(bot))

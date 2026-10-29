@@ -166,7 +166,7 @@ class WordCloud(commands.Cog):
 
         Returns
         ----------
-        bool: Whether the message can be counted
+        (bool): Whether the message can be counted
         """
 
         return (
@@ -184,7 +184,7 @@ class WordCloud(commands.Cog):
 
         Returns
         ----------
-        list[str]: List of words
+        (list[str]): List of words
         """
 
         tokens = []
@@ -215,7 +215,7 @@ class WordCloud(commands.Cog):
         """
         Returns
         ----------
-        set[str]: Norwegian and english words too common to include in a wordcloud
+        (set[str]): Norwegian and english words too common to include in a wordcloud
         """
 
         return set(stopwords.words("norwegian") + stopwords.words("english"))
@@ -233,7 +233,7 @@ class WordCloud(commands.Cog):
 
         Returns
         ----------
-        BytesIO: BytesIO object containing the wordcloud image
+        (BytesIO): BytesIO object containing the wordcloud image
         """
 
         mask = np.array(Image.open("./src/assets/word_cloud_mask.png"))
@@ -265,7 +265,7 @@ class WordCloud(commands.Cog):
 
         Returns
         ----------
-        BytesIO: BytesIO object containing the wordcloud image
+        (BytesIO): BytesIO object containing the wordcloud image
         """
 
         return WordCloud.render_wordcloud(max_words, allow_bigrams, lambda wc: wc.generate(text))
@@ -282,7 +282,7 @@ class WordCloud(commands.Cog):
 
         Returns
         ----------
-        BytesIO: BytesIO object containing the wordcloud image
+        (BytesIO): BytesIO object containing the wordcloud image
         """
 
         filter_words = WordCloud.filter_words()
@@ -305,11 +305,11 @@ class WordCloud(commands.Cog):
     @wordcloud_group.command(name="samtykke", description="Gi samtykke til å samle meldingsdataen din for ordskyer")
     async def consent(self, interaction: discord.Interaction):
         """
-        Gi samtykke til å samle meldingsdataen din
+        Consent to having your messages counted for word clouds
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         if interaction.user.id in self.consenting_users:
@@ -342,11 +342,11 @@ class WordCloud(commands.Cog):
     @wordcloud_group.command(name="slett", description="Fjern samtykke og slett alle dine ordskydata")
     async def consent_remove(self, interaction: discord.Interaction):
         """
-        Fjern samtykke og slett meldingsdata
+        Withdraw consent and delete your word cloud data
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         if interaction.user.id not in self.consenting_users:
@@ -380,11 +380,11 @@ class WordCloud(commands.Cog):
     @wordcloud_group.command(name="data", description="Få tilsendt dine ordskydata i JSON-format")
     async def data(self, interaction: discord.Interaction):
         """
-        Få tilsendt dine data
+        Send the user their word cloud data as a JSON file
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         result = await self.bot.db.fetchall(
@@ -420,11 +420,11 @@ class WordCloud(commands.Cog):
     )
     async def generate_db(self, interaction: discord.Interaction):
         """
-        Generer en ordsky basert på dine mest frekvente sagte ord siden du ga samtykke
+        Generate a word cloud from the user's most used words since they consented
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         await interaction.response.defer()
@@ -480,7 +480,7 @@ class WordCloud(commands.Cog):
 
         Returns
         ----------
-        list[discord.TextChannel]: Channels the user can write in, the bot can read and that aren't private
+        (list[discord.TextChannel]): Channels the user can write in, the bot can read and that aren't private
         """
 
         # The word cloud is posted publicly, so skip private channels like board chats.
@@ -513,7 +513,7 @@ class WordCloud(commands.Cog):
 
         Returns
         ----------
-        list[str]: The tokens of the user's messages
+        (list[str]): The tokens of the user's messages
         """
 
         tokens = []
@@ -547,11 +547,11 @@ class WordCloud(commands.Cog):
     @app_commands.describe(amount="Hvor mange av de siste meldingene i hver kanal som skal leses. Flere tar lengre tid")
     async def generate_last(self, interaction: discord.Interaction, amount: app_commands.Range[int, 50, 2000] = 1000):
         """
-        Generer en ordsky basert på dine mest frekvente sagte ord fra de siste meldingene dine
+        Generate a word cloud from the user's most used words in the most recent messages of each channel
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         amount (int): How many of the most recent messages in each channel to read
         """
 
@@ -587,7 +587,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(WordCloud(bot))

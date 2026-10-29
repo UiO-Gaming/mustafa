@@ -52,7 +52,7 @@ class Meme(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction
+        interaction (discord.Interaction): The slash command interaction
         attachment (discord.Attachment): The image to deepfry
         """
 
@@ -115,7 +115,7 @@ class Meme(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction
+        interaction (discord.Interaction): The slash command interaction
         bad_text (str): The upper text, what's disliked
         good_text (str): The lower text, what's liked
         """
@@ -169,7 +169,7 @@ class Meme(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         attachment (discord.Attachment): The image to point at. Only supports png and jpg for now
         """
 
@@ -286,9 +286,9 @@ class Meme(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction
-        query (str|None): Search term to look up the media on YouTube
-        url (str|None): Link to the source media. Used instead of the search term if both are given
+        interaction (discord.Interaction): The slash command interaction
+        query (str | None): Search term to look up the media on YouTube
+        url (str | None): Link to the source media. Used instead of the search term if both are given
         """
 
         if not url and not query:
@@ -357,7 +357,7 @@ class Meme(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction
+        interaction (discord.Interaction): The slash command interaction
         top_text (str): The upper text
         bottom_text (str): The lower text
         """

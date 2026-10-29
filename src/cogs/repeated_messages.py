@@ -11,6 +11,12 @@ class RepeatedMessages(commands.Cog):
     """Send messages at specific points of time"""
 
     def __init__(self, bot: commands.Bot):
+        """
+        Parameters
+        ----------
+        bot (commands.Bot): The bot instance
+        """
+
         self.bot = bot
 
         # self.fredag.start()
@@ -20,6 +26,10 @@ class RepeatedMessages(commands.Cog):
     def cog_unload(self):
         # self.fredag.cancel()
         # self.mandag.cancel()
+        """
+        Stop the repeated messages when the cog is unloaded
+        """
+
         self.new_year.cancel()
 
     def get_general_channel(self) -> discord.TextChannel | None:
@@ -104,7 +114,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(RepeatedMessages(bot))

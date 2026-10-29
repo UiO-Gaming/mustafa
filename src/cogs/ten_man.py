@@ -44,7 +44,7 @@ class TenMan(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         await open_lobby(interaction, self.active_lobbies, TenManView, "10 Man Lobby", timedelta(minutes=30))
@@ -61,7 +61,7 @@ class TenManView(LobbyView):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
+        interaction (discord.Interaction): The interaction that triggered this
         button (discord.ui.Button): The button that was pressed
         """
 
@@ -96,10 +96,22 @@ class TeamDraft:
 
     @property
     def leaders(self) -> list[discord.Member]:
+        """
+        Returns
+        ----------
+        (list[discord.Member]): The two team leaders
+        """
+
         return [team[0] for team in self.teams]
 
     @property
     def done(self) -> bool:
+        """
+        Returns
+        ----------
+        (bool): Whether every player has been picked
+        """
+
         return not self.remaining
 
     def pick(self, player_id: int):
@@ -161,7 +173,7 @@ class StageView(discord.ui.View):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
+        interaction (discord.Interaction): The interaction that triggered this
         reason (str): Why the user was denied
 
         Returns
@@ -174,6 +186,10 @@ class StageView(discord.ui.View):
         return False
 
     async def on_timeout(self):
+        """
+        Disable the step's menus and buttons after SELECTION_TIMEOUT seconds without interaction
+        """
+
         for item in self.children:
             item.disabled = True
 
@@ -183,6 +199,16 @@ class StageView(discord.ui.View):
             pass  # The message has been deleted
 
     async def on_error(self, interaction: discord.Interaction, error: Exception, item: discord.ui.Item):
+        """
+        Log the error and tell the user something went wrong
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): The interaction that triggered this
+        error (Exception): The error that was raised
+        item (discord.ui.Item): The menu or button that was used
+        """
+
         self.bot.logger.error(f"{type(self).__name__} error", exc_info=error)
 
         embed = embed_templates.error_fatal("Oopsie woopsie, we made a fucky wucky!")
@@ -196,10 +222,30 @@ class TeamLeaderView(StageView):
     """The host picks two team leaders"""
 
     def __init__(self, lobby: Lobby, bot: commands.Bot, message: discord.PartialMessage):
+        """
+        Parameters
+        ----------
+        lobby (Lobby): The closed lobby
+        bot (commands.Bot): The bot instance
+        message (discord.PartialMessage): The lobby message
+        """
+
         super().__init__(lobby, bot, message)
         self.add_item(TeamLeaderSelect(lobby.players))
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        """
+        Only let the host pick team leaders
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): The interaction that triggered this
+
+        Returns
+        ----------
+        (bool): Whether the user may use the menu
+        """
+
         if interaction.user != self.lobby.host:
             return await self.deny(interaction, "Bare hosten kan velge lagledere")
         return True
@@ -222,6 +268,8 @@ class TeamLeaderView(StageView):
 
 
 class TeamLeaderSelect(discord.ui.Select):
+    """Menu for picking the two team leaders"""
+
     def __init__(self, players: list[discord.Member]):
         """
         Parameters
@@ -241,7 +289,7 @@ class TeamLeaderSelect(discord.ui.Select):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
+        interaction (discord.Interaction): The interaction that triggered this
         """
 
         view: TeamLeaderView = self.view
@@ -269,6 +317,18 @@ class DraftView(StageView):
         self.add_item(PlayerSelect(draft.remaining))
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        """
+        Only let the team leader whose turn it is pick
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): The interaction that triggered this
+
+        Returns
+        ----------
+        (bool): Whether the user may use the menu
+        """
+
         if interaction.user not in self.draft.leaders:
             return await self.deny(interaction, "Bare lagledere kan velge spillere")
         if interaction.user != self.draft.leaders[self.draft.turn]:
@@ -277,6 +337,8 @@ class DraftView(StageView):
 
 
 class PlayerSelect(discord.ui.Select):
+    """Menu for picking the next player for a team"""
+
     def __init__(self, players: list[discord.Member]):
         """
         Parameters
@@ -296,7 +358,7 @@ class PlayerSelect(discord.ui.Select):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
+        interaction (discord.Interaction): The interaction that triggered this
         """
 
         view: DraftView = self.view
@@ -323,6 +385,18 @@ class VoiceView(StageView):
         self.moved_teams: set[int] = set()
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        """
+        Only let team leaders move their team
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): The interaction that triggered this
+
+        Returns
+        ----------
+        (bool): Whether the user may use the button
+        """
+
         if interaction.user not in (self.teams[0][0], self.teams[1][0]):
             return await self.deny(interaction, "Bare lagleder kan flytte laget!")
         return True
@@ -334,7 +408,7 @@ class VoiceView(StageView):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
+        interaction (discord.Interaction): The interaction that triggered this
         button (discord.ui.Button): The button that was pressed
         """
 
@@ -373,7 +447,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(TenMan(bot))

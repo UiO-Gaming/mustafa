@@ -13,7 +13,15 @@ from cogs.utils import misc_utils
 
 
 class UserFacts(commands.Cog):
+    """Let users share facts about themselves, like their height and MBTI"""
+
     def __init__(self, bot):
+        """
+        Parameters
+        ----------
+        bot (commands.Bot): The bot instance
+        """
+
         self.bot = bot
 
         self.mbti_codes = {
@@ -70,7 +78,7 @@ class UserFacts(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
+        interaction (discord.Interaction): The slash command interaction
         user (discord.Member): The user to see the height of
         """
 
@@ -114,7 +122,7 @@ class UserFacts(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
+        interaction (discord.Interaction): The slash command interaction
         height_cm (int): The height of the user
         """
 
@@ -139,7 +147,7 @@ class UserFacts(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         updated = await self.bot.db.execute(
@@ -167,7 +175,7 @@ class UserFacts(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         result = await self.bot.db.fetchall("""
@@ -202,7 +210,7 @@ class UserFacts(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
+        interaction (discord.Interaction): The slash command interaction
         user (discord.Member): The user to see the MBTI of
         """
 
@@ -267,7 +275,7 @@ class UserFacts(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
+        interaction (discord.Interaction): The slash command interaction
         mbti (str): The MBTI of the user
         """
 
@@ -293,7 +301,7 @@ class UserFacts(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
+        interaction (discord.Interaction): The interaction that triggered this
         current (str): The current input
         """
 
@@ -310,7 +318,7 @@ class UserFacts(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         updated = await self.bot.db.execute(
@@ -338,7 +346,7 @@ class UserFacts(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         embed = discord.Embed(title="Hva er MBTI?", color=discord.Color.blurple())
@@ -352,6 +360,14 @@ class UserFacts(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
     def create_similarity_matrix(self):
+        """
+        Count how many letters every pair of MBTI types has in common
+
+        Returns
+        ----------
+        (np.ndarray): The number of shared letters, indexed like mbti_list
+        """
+
         def similarity(mbti_1, mbti_2):
             similarity = 0
             for i in range(4):
@@ -372,6 +388,19 @@ class UserFacts(commands.Cog):
     def create_mbti_graph(
         self, user_mbti: tuple[discord.Member, str], others: list[tuple[discord.Member, str]]
     ) -> bytes:
+        """
+        Draw a graph of how similar a user's MBTI is to other users'
+
+        Parameters
+        ----------
+        user_mbti (tuple[discord.Member, str]): The invoking user and their MBTI
+        others (list[tuple[discord.Member, str]]): Other users and their MBTIs
+
+        Returns
+        ----------
+        (bytes): The graph as PNG data
+        """
+
         user, mbti = user_mbti
 
         # Create a Graphviz graph
@@ -403,7 +432,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(UserFacts(bot))

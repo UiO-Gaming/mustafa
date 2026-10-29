@@ -28,12 +28,22 @@ from cogs.utils import misc_utils
 
 @dataclass
 class CreditUser:
+    """A user's row in the social credit table"""
+
     user_id: int
     credit_score: int
 
 
 class SocialCredit(commands.Cog):
+    """Give and take social credit for things users do"""
+
     def __init__(self, bot: commands.Bot):
+        """
+        Parameters
+        ----------
+        bot (commands.Bot): The bot instance
+        """
+
         self.bot = bot
         self.fuck_uwu.start()
         self.voice_activity.start()
@@ -67,8 +77,12 @@ class SocialCredit(commands.Cog):
 
     def add_new_citizen(func):
         """
-        Decorator that, when used, make sure that a user is inserted
-        into the database before executing the function
+        Decorator that makes sure the user is in the database before running the function.
+        The user's ID has to be the function's first argument
+
+        Parameters
+        ----------
+        func (callable): The function to wrap
         """
 
         async def wrapper(*args, **kwargs):
@@ -80,7 +94,11 @@ class SocialCredit(commands.Cog):
 
     def roll(percent: int = 50):
         """
-        Decorator that executes the function with a given percent chance
+        Decorator that only runs the function with a given chance
+
+        Parameters
+        ----------
+        percent (int): The chance of running the function, in percent
         """
 
         def decorator(func):
@@ -175,6 +193,10 @@ class SocialCredit(commands.Cog):
         await self.bot.wait_until_ready()
 
     async def cog_unload(self):
+        """
+        Stop the daily and voice loops when the cog is unloaded
+        """
+
         self.bot.logger.info("Unloading cog")
         self.fuck_uwu.cancel()
         self.voice_activity.cancel()
@@ -236,7 +258,7 @@ class SocialCredit(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
+        interaction (discord.Interaction): The slash command interaction
         user (discord.Member | None): The user to check the score of. Defaults to the user who invoked the command
         """
 
@@ -270,7 +292,7 @@ class SocialCredit(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): The interaction object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         await interaction.response.defer()
@@ -300,7 +322,7 @@ class SocialCredit(commands.Cog):
 
         Parameters
         ----------
-        message (discord.Message): The message object
+        message (discord.Message): The message to check
         """
 
         if message.author.bot:
@@ -320,7 +342,7 @@ class SocialCredit(commands.Cog):
 
         Parameters
         ----------
-        message (discord.Message): The message object
+        message (discord.Message): The message to check
         """
 
         if message.channel.id == self.bot.channel_ids.get("politics"):
@@ -333,7 +355,7 @@ class SocialCredit(commands.Cog):
 
         Parameters
         ----------
-        message (discord.Message): The message object
+        message (discord.Message): The message to check
         """
 
         if message.channel.id == self.bot.channel_ids.get("member_chat"):
@@ -346,7 +368,7 @@ class SocialCredit(commands.Cog):
 
         Parameters
         ----------
-        message (discord.Message): The message object
+        message (discord.Message): The message to check
         """
 
         illegal_hours = [5, 6, 7, 8, 9]
@@ -361,7 +383,7 @@ class SocialCredit(commands.Cog):
 
         Parameters
         ----------
-        message (discord.Message): The message object
+        message (discord.Message): The message to check
         """
 
         happy_hours = [1, 2, 3, 4]
@@ -375,7 +397,7 @@ class SocialCredit(commands.Cog):
 
         Parameters
         ----------
-        message (discord.Message): The message object
+        message (discord.Message): The message to check
         """
 
         slurs = [
@@ -412,7 +434,7 @@ class SocialCredit(commands.Cog):
 
         Parameters
         ----------
-        message (discord.Message): The message object
+        message (discord.Message): The message to check
         """
 
         # This only works in the UiO Gaming server as well
@@ -427,7 +449,7 @@ class SocialCredit(commands.Cog):
 
         Parameters
         ----------
-        reaction (discord.Reaction): The reaction object
+        reaction (discord.Reaction): The reaction that was added
         user (discord.User | discord.Member): The user who reacted
         """
 
@@ -449,6 +471,11 @@ class SocialCredit(commands.Cog):
     async def on_star_remove(self, reaction: discord.Reaction, user: discord.User | discord.Member):
         """
         Deducts points from users who have a star reaction removed from their message
+
+        Parameters
+        ----------
+        reaction (discord.Reaction): The reaction that was removed
+        user (discord.User | discord.Member): The user who removed it
         """
 
         if user.bot or reaction.emoji != "⭐" or reaction.message.author == user:
@@ -467,7 +494,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(SocialCredit(bot))

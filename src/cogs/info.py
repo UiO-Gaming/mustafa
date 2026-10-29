@@ -31,7 +31,7 @@ class Info(commands.Cog):
         roles (list[discord.Role]): List of roles
 
         Returns
-        -------
+        ----------
         (str): String of roles
         """
 
@@ -49,11 +49,11 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The interaction that triggered this
         join_method (callable): Function to join the boosters with
 
         Returns
-        -------
+        ----------
         (str): String of boosters
         """
 
@@ -77,7 +77,7 @@ class Info(commands.Cog):
         members (list[discord.Member]): List of members
 
         Returns
-        -------
+        ----------
         (str): String of members
         """
 
@@ -97,7 +97,7 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         # Days since guild was created
@@ -253,7 +253,7 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         roles = self.construct_role_string(interaction.guild.roles)
@@ -276,7 +276,7 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         if len(interaction.guild.premium_subscribers) == 0:
@@ -301,7 +301,7 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         embed = discord.Embed(color=interaction.guild.me.color, description=f"[Lenke]({interaction.guild.icon})")
@@ -318,7 +318,7 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         if not interaction.guild.splash:
@@ -339,7 +339,7 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         if not interaction.guild.banner:
@@ -362,7 +362,7 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         role (discord.Role): Role to fetch information about
         """
 
@@ -408,7 +408,7 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         channel (discord.TextChannel): Text channel to fetch information about
         """
 
@@ -442,7 +442,7 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         channel (discord.VoiceChannel): Voice channel to fetch information about
         """
 
@@ -467,7 +467,7 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         roles = sorted(
@@ -494,7 +494,7 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         emoji (discord.Emoji): Emoji to fetch information about
         """
 
@@ -534,7 +534,7 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Command context object
+        ctx (commands.Context): The command context
         """
 
         if ctx.message.type != discord.MessageType.reply:
@@ -584,7 +584,7 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         # Sort members by creation date
@@ -616,7 +616,7 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         # Sort members by creation date
@@ -647,8 +647,8 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
-        user (discord.Member, optional): User to get information about. Defaults to None (invoker).
+        interaction (discord.Interaction): The slash command interaction
+        user (discord.Member | None): The user to get information about. Defaults to the invoking user
         """
 
         if not user:
@@ -743,8 +743,8 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
-        user (discord.Member, optional): User to get roles of. Defaults to None (invoker).
+        interaction (discord.Interaction): The slash command interaction
+        user (discord.Member | None): The user to get the roles of. Defaults to the invoking user
         """
 
         if not user:
@@ -774,8 +774,8 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
-        user (discord.Member, optional): User to get roles of. Defaults to None (invoker).
+        interaction (discord.Interaction): The slash command interaction
+        user (discord.Member | None): The user to get the missing roles of. Defaults to the invoking user
         """
 
         if not user:
@@ -807,8 +807,8 @@ class Info(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
-        user (discord.User, optional): User to get avatar of. Defaults to None (invoker).
+        interaction (discord.Interaction): The slash command interaction
+        user (discord.User | None): The user to get the avatar of. Defaults to the invoking user
         """
 
         if not user:
@@ -826,7 +826,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(Info(bot))

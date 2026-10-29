@@ -174,7 +174,7 @@ class Anime(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The interaction that triggered this
 
         Returns
         ----------
@@ -190,7 +190,7 @@ class Anime(commands.Cog):
 
         Parameters
         ----------
-        text: The raw HTML
+        text (str): The raw HTML
 
         Returns
         ----------
@@ -210,7 +210,7 @@ class Anime(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The interaction that triggered this
         query (str): The GraphQL query
         variables (str): The variables for the query
         key (str): The key to return from the response
@@ -340,7 +340,7 @@ class Anime(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         user (str): The user to get information about
         """
 
@@ -468,7 +468,7 @@ class Anime(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         user (str): The user to get information about
         """
 
@@ -561,7 +561,7 @@ class Anime(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         user (str): The user to get information about
         """
 
@@ -656,7 +656,7 @@ class Anime(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         search (str): The name of the anime to fetch information about
         """
 
@@ -812,7 +812,7 @@ class Anime(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         search (str): The name of the manga to fetch information about
         """
 
@@ -945,7 +945,7 @@ class Anime(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         search (str): The name of the character to fetch information about
         """
 
@@ -1041,7 +1041,7 @@ class Anime(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         search (str): The name of the creator to fetch information about
         """
 
@@ -1142,7 +1142,7 @@ class Anime(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         search (str): The name of the studio to fetch information about
         """
 
@@ -1236,7 +1236,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(Anime(bot))

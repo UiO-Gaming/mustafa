@@ -26,7 +26,7 @@ async def fetch_article(session: aiohttp.ClientSession, title: str):
 
     Returns
     ----------
-    tuple: The title, url, text and image of the article
+    (tuple): The title, url, text and image of the article
     """
 
     # The wiki renders the article to HTML for us, so templates are already expanded
@@ -78,7 +78,7 @@ async def fetch_page_image(session: aiohttp.ClientSession, title: str) -> str | 
 
     Returns
     ----------
-    str | None: The url of the image. None if the article has no image or it couldn't be fetched
+    (str | None): The url of the image. None if the article has no image or it couldn't be fetched
     """
 
     params = {
@@ -110,7 +110,7 @@ def shorten(text: str, limit: int) -> str:
 
     Returns
     ----------
-    str: The shortened text
+    (str): The shortened text
     """
 
     if len(text) <= limit:
@@ -146,7 +146,7 @@ def viteboka_embed(title: str, url: str, text: str, image: str):
 
     Returns
     ----------
-    discord.Embed: The embed
+    (discord.Embed): The embed
     """
 
     embed = discord.Embed(color=discord.Color.orange(), title=title, url=url, description=text)
@@ -157,6 +157,8 @@ def viteboka_embed(title: str, url: str, text: str, image: str):
 
 
 class VitebokaException(Exception):
+    """Raised when an article can't be fetched. The message is shown to the user"""
+
     pass
 
 
@@ -185,7 +187,7 @@ class Viteboka(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         query (str): The search query
         """
 
@@ -243,7 +245,7 @@ class Viteboka(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         await interaction.response.defer()
@@ -286,8 +288,8 @@ class ArticleButton(discord.ui.Button):
     ):
         """
         Parameters
-        -----------
-        owner (discord.User|discord.Member): The user that invoked the paginator. Only this user can use the button
+        ----------
+        owner (discord.User | discord.Member): The user that invoked the paginator. Only this user can use the button
         label (str): The label of the button
         article_title (str): The title of the article the button is associated with
         """
@@ -301,8 +303,8 @@ class ArticleButton(discord.ui.Button):
         What to do when the button is pressed
 
         Parameters
-        -----------
-        interaction (discord.Interaction): Slash command context object
+        ----------
+        interaction (discord.Interaction): The interaction that triggered this
         """
 
         await interaction.response.defer()
@@ -328,7 +330,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(Viteboka(bot))

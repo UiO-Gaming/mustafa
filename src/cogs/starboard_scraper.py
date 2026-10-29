@@ -76,8 +76,8 @@ class StarboardScraper(commands.Cog):
         Get the ID of the last scraped message
 
         Returns
-        -------
-        int or None: Last scraped message ID or None if never scraped
+        ----------
+        (int | None): Last scraped message ID or None if never scraped
         """
         result = await self.bot.db.fetchone("""
             SELECT last_scraped_message_id
@@ -114,8 +114,8 @@ class StarboardScraper(commands.Cog):
         message (discord.Message): The starboard message to parse
 
         Returns
-        -------
-        tuple(int, int) | None: (original_message_id, original_channel_id) or None if parsing failed
+        ----------
+        (tuple[int, int] | None): The original message ID and channel ID. None if parsing failed
         """
 
         if not message.embeds:
@@ -217,6 +217,10 @@ class StarboardScraper(commands.Cog):
         await self.scrape_starboard_channel()
 
     async def cog_unload(self):
+        """
+        Stop the starboard check when the cog is unloaded
+        """
+
         self.bot.logger.info("Unloading cog")
         self.star_check.cancel()
 
@@ -227,7 +231,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(StarboardScraper(bot))
