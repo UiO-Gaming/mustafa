@@ -12,11 +12,13 @@ import yt_dlp
 from discord import app_commands
 from discord.ext import commands
 from moviepy import CompositeVideoClip
-from moviepy import TextClip
+from moviepy import ImageClip
 from moviepy import VideoFileClip
 from moviepy import vfx
 from PIL import Image
+from PIL import ImageDraw
 from PIL import ImageEnhance
+from PIL import ImageFont
 from PIL import UnidentifiedImageError
 
 from cogs.utils import discord_utils
@@ -27,6 +29,7 @@ NIGHTCORE_SPEED = 1.33
 # Resample first so the speed-up is the same whatever the source's sample rate is
 NIGHTCORE_FILTER = f"aresample=44100,asetrate=44100*{NIGHTCORE_SPEED},aresample=44100,bass=g=6:f=100:w=0.5,volume=0.8"
 MP3_BITRATES = [192, 160, 128, 112, 96, 80, 64]
+CRAB_FONT = "./src/assets/fonts/DejaVuSans-Bold.ttf"
 
 
 class Meme(commands.Cog):
@@ -383,6 +386,40 @@ class Meme(commands.Cog):
             self.bot.logger.warning(f"Failed to remove temporary file {temp_file}")
 
     @staticmethod
+    def text_clip(text: str, font_size: int, stroke_width: int = 0) -> ImageClip:
+        """
+        Render white text with a black outline as a transparent clip.
+        moviepy's own TextClip cuts off everything below the tallest letters with Pillow 11.2 and newer,
+        so the image is made as tall as the font's ascent and descent instead
+
+        Parameters
+        ----------
+        text (str): The text to render
+        font_size (int): The font size
+        stroke_width (int): The width of the black outline
+
+        Returns
+        ----------
+        (ImageClip): The text with a transparent background
+        """
+
+        font = ImageFont.truetype(CRAB_FONT, font_size)
+        ascent, descent = font.getmetrics()
+        left, _, right, _ = font.getbbox(text, stroke_width=stroke_width, anchor="ls")
+
+        image = Image.new("RGBA", (right - left, ascent + descent + 2 * stroke_width), (0, 0, 0, 0))
+        ImageDraw.Draw(image).text(
+            (-left, ascent + stroke_width),
+            text,
+            font=font,
+            fill="white",
+            anchor="ls",
+            stroke_width=stroke_width,
+            stroke_fill="black",
+        )
+        return ImageClip(np.array(image))
+
+    @staticmethod
     def make_crab(top_text: str, bottom_text: str, user_id: int):
         """
         Generates a crab rave video based on text
@@ -397,41 +434,16 @@ class Meme(commands.Cog):
 
         clip = VideoFileClip("./src/assets/crab.mp4")
 
-        top_part = (
-            TextClip(text=top_text, font_size=60, color="white", stroke_width=2, stroke_color="black")
-            .with_start(11.0)
-            .with_position(("center", 300))
-            .with_duration(26.0)
-        )
-        middle_part = (
-            TextClip(
-                text="____________________",
-                font_size=48,
-                color="white",
-            )
-            .with_start(11.0)
-            .with_position(("center", "center"))
-            .with_duration(26.0)
-        )
-        bottom_part = (
-            TextClip(text=bottom_text, font_size=60, color="white", stroke_width=2, stroke_color="black")
-            .with_start(11.0)
-            .with_position(("center", 400))
-            .with_duration(26.0)
-        )
+        top_part = Meme.text_clip(top_text, 60, stroke_width=2).with_position(("center", 300))
+        middle_part = Meme.text_clip("____________________", 48).with_position(("center", "center"))
+        bottom_part = Meme.text_clip(bottom_text, 60, stroke_width=2).with_position(("center", 400))
 
-        top_part = top_part.with_effects([vfx.CrossFadeIn(1)])
-        middle_part = middle_part.with_effects([vfx.CrossFadeIn(1)])
-        bottom_part = bottom_part.with_effects([vfx.CrossFadeIn(1)])
+        parts = [
+            part.with_start(11.0).with_duration(26.0).with_effects([vfx.CrossFadeIn(1)])
+            for part in (top_part, middle_part, bottom_part)
+        ]
 
-        video = CompositeVideoClip(
-            [
-                clip,
-                top_part,
-                middle_part,
-                bottom_part,
-            ]
-        ).with_duration(26.0)
+        video = CompositeVideoClip([clip, *parts]).with_duration(26.0)
 
         video.write_videofile(
             f"./src/assets/temp/{user_id}_crab.mp4",
