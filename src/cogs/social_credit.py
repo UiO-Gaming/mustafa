@@ -21,10 +21,8 @@ from cogs.utils import misc_utils
 + score for å få melding på stjernetavla/bli stjerna. multiplier per stjerne
 - score hver dag med weebrolle (lite)
 - score for å skrive en skjellsord mot maskiner
-
------- TO-DO ------
-- score sitte i afk
-+ score for å sitte i voice per time
+- score sitte i afk voice
++ score for å sitte i voice
 """
 
 
@@ -38,10 +36,13 @@ class SocialCredit(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.fuck_uwu.start()
+        self.voice_activity.start()
 
         self.START_POINTS = 1000
         self.STAR_THRESHOLD = 3
         self.POINTS_PER_STAR = 25
+        self.VOICE_POINTS = 1
+        self.AFK_POINTS = 2
 
     async def cog_load(self):
         """
@@ -146,9 +147,37 @@ class SocialCredit(commands.Cog):
 
         await self.bot.wait_until_ready()
 
+    @tasks.loop(minutes=10)
+    @misc_utils.log_errors
+    async def voice_activity(self):
+        """
+        Rewards users for talking in voice channels and punishes users for sitting in the AFK channel
+        """
+
+        if not (guild := self.bot.get_guild(self.bot.UIO_GAMING_GUILD_ID)):
+            return
+
+        for channel in guild.voice_channels:
+            members = [member for member in channel.members if not member.bot]
+            if channel == guild.afk_channel:
+                for member in members:
+                    await self.social_punishment(member.id, self.AFK_POINTS, "afk")
+            elif len(members) > 1:
+                for member in members:
+                    await self.social_reward(member.id, self.VOICE_POINTS, "voice")
+
+    @voice_activity.before_loop
+    async def before_voice_activity(self):
+        """
+        Wait until bot cache is ready
+        """
+
+        await self.bot.wait_until_ready()
+
     async def cog_unload(self):
         self.bot.logger.info("Unloading cog")
         self.fuck_uwu.cancel()
+        self.voice_activity.cancel()
 
     @add_new_citizen
     async def social_punishment(self, user_id: int, points: int, reason: str):
