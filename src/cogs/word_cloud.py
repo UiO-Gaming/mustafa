@@ -1,7 +1,8 @@
+import asyncio
 import functools
-import itertools
 import json
 import re
+from collections import Counter
 from collections import defaultdict
 from io import BytesIO
 from io import StringIO
@@ -33,13 +34,15 @@ class WordCloud(commands.Cog):
 
         self.bot = bot
 
-        # Default dict where all users are empty defaultdicts
-        # The user's defaultdict has a default value of 0
-        self.word_freq_cache = defaultdict(lambda: defaultdict(int))
+        # Word counts per user that haven't been written to the database yet
+        self.word_freq_cache: defaultdict[int, Counter] = defaultdict(Counter)
 
-        # We cache the consenting users to avoid querying the database every 16:36
-        # It's frail but it works unless you have a skill issue
-        self.consenting_users = []
+        # Cached to avoid querying the database on every message
+        self.consenting_users: set[int] = set()
+
+        # Held while writing the cache and while deleting a user's data,
+        # so a user's words can't be written after their data has been deleted
+        self.cache_lock = asyncio.Lock()
 
         try:
             nltk.data.find("corpora/stopwords")
@@ -96,7 +99,7 @@ class WordCloud(commands.Cog):
             SELECT discord_user_id
             FROM wordcloud_metadata
             """)
-        self.consenting_users = [row[0] for row in rows]
+        self.consenting_users = {row[0] for row in rows}
 
     async def insert_cache(self):
         """
@@ -104,34 +107,26 @@ class WordCloud(commands.Cog):
         We do this in order to prevent excess database writes
         """
 
-        if not self.word_freq_cache:
-            return
+        async with self.cache_lock:
+            if not self.word_freq_cache:
+                return
 
-        # Swap in an empty cache before awaiting, so words from messages sent in the meantime aren't lost
-        cache, self.word_freq_cache = self.word_freq_cache, defaultdict(lambda: defaultdict(int))
+            # Swap in an empty cache before awaiting, so words from messages sent in the meantime aren't lost
+            cache, self.word_freq_cache = self.word_freq_cache, defaultdict(Counter)
+            word_freqs = [(user_id, word, freq) for user_id, words in cache.items() for word, freq in words.items()]
 
-        # Flatten the defaultdict into a list of tuples
-        # This is a bit of a hack but it works
-        word_freqs = list(
-            itertools.chain.from_iterable(
-                [(user_id, word, freq) for word, freq in user_word_freqs.items()]
-                for user_id, user_word_freqs in cache.items()
-            )
-        )
-
-        # Insert cache into database
-        try:
-            await self.bot.db.executemany(
-                """
-                INSERT INTO wordcloud_words (discord_user_id, word, frequency)
-                VALUES (%s, %s, %s)
-                ON CONFLICT (discord_user_id, word)
-                DO UPDATE SET frequency = wordcloud_words.frequency + EXCLUDED.frequency
-                """,
-                word_freqs,
-            )
-        except psycopg.Error as err:
-            self.bot.logger.error(f"Failed to insert wordcloud cache into database - {err}")
+            try:
+                await self.bot.db.executemany(
+                    """
+                    INSERT INTO wordcloud_words (discord_user_id, word, frequency)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (discord_user_id, word)
+                    DO UPDATE SET frequency = wordcloud_words.frequency + EXCLUDED.frequency
+                    """,
+                    word_freqs,
+                )
+            except psycopg.Error as err:
+                self.bot.logger.error(f"Failed to insert wordcloud cache into database - {err}")
 
     @tasks.loop(minutes=20)
     @misc_utils.log_errors
@@ -156,12 +151,7 @@ class WordCloud(commands.Cog):
         if not self.can_count_message(message):
             return
 
-        tokens = self.tokenize(message.clean_content)
-
-        for token in tokens:
-            # Enter into cache
-            # This may take a performance hit but who tf cares. We're using python anyway
-            self.word_freq_cache[message.author.id][token] += 1
+        self.word_freq_cache[message.author.id].update(self.tokenize(message.clean_content))
 
     def can_count_message(self, message: discord.Message) -> bool:
         """
@@ -339,7 +329,7 @@ class WordCloud(commands.Cog):
                 ephemeral=False,
             )
 
-        self.consenting_users.append(interaction.user.id)
+        self.consenting_users.add(interaction.user.id)
 
         embed = embed_templates.success("Samtykke registrert!")
         await interaction.response.send_message(embed=embed, ephemeral=False)
@@ -356,28 +346,28 @@ class WordCloud(commands.Cog):
         interaction (discord.Interaction): Slash command context object
         """
 
-        try:
-            self.consenting_users.remove(interaction.user.id)
-        except ValueError:
+        if interaction.user.id not in self.consenting_users:
             return await interaction.response.send_message(
                 embed=embed_templates.error_warning(self.MSG_NO_DATA), ephemeral=False
             )
 
-        self.word_freq_cache.pop(interaction.user.id, None)
+        async with self.cache_lock:
+            try:
+                await self.bot.db.execute_in_transaction(
+                    [
+                        ("DELETE FROM wordcloud_metadata WHERE discord_user_id = %s", (interaction.user.id,)),
+                        ("DELETE FROM wordcloud_words WHERE discord_user_id = %s", (interaction.user.id,)),
+                    ]
+                )
+            except psycopg.Error as err:
+                self.bot.logger.error(f"Failed to delete wordcloud metadata from database - {err}")
+                return await interaction.response.send_message(
+                    embed=embed_templates.error_fatal("Klarte ikke å slette fra database"),
+                    ephemeral=False,
+                )
 
-        try:
-            await self.bot.db.execute_in_transaction(
-                [
-                    ("DELETE FROM wordcloud_metadata WHERE discord_user_id = %s", (interaction.user.id,)),
-                    ("DELETE FROM wordcloud_words WHERE discord_user_id = %s", (interaction.user.id,)),
-                ]
-            )
-        except psycopg.Error as err:
-            self.bot.logger.error(f"Failed to delete wordcloud metadata from database - {err}")
-            return await interaction.response.send_message(
-                embed=embed_templates.error_fatal("Klarte ikke å slette fra database"),
-                ephemeral=False,
-            )
+            self.consenting_users.discard(interaction.user.id)
+            self.word_freq_cache.pop(interaction.user.id, None)
 
         embed = embed_templates.success("Meldingsdata er slettet!")
         await interaction.response.send_message(embed=embed)
