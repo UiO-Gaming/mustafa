@@ -101,7 +101,7 @@ class Streak(commands.Cog):
         message (discord.Message): The message
         """
 
-        if message.author.bot:
+        if message.author.bot or message.guild is None or message.guild.id != self.bot.guild_id:
             return
 
         self.record_message(message)
@@ -143,25 +143,26 @@ class Streak(commands.Cog):
 
         await self.bot.wait_until_ready()
 
+        if not (guild := self.bot.get_guild(self.bot.guild_id)):
+            self.bot.logger.warning("Could not find the bot's server, so missed messages won't count towards streaks")
+            return
+
         since = discord.utils.utcnow().astimezone(self.bot.timezone).replace(hour=0, minute=0, second=0, microsecond=0)
         counted = 0
-        for guild in self.bot.guilds:
-            channels = [c for c in guild.channels if isinstance(c, discord.abc.Messageable)] + list(guild.threads)
-            for channel in channels:
-                if not channel.permissions_for(guild.me).read_message_history:
-                    continue
+        channels = [c for c in guild.channels if isinstance(c, discord.abc.Messageable)] + list(guild.threads)
+        for channel in channels:
+            if not channel.permissions_for(guild.me).read_message_history:
+                continue
 
-                try:
-                    async for message in channel.history(limit=None, after=since):
-                        if not message.author.bot:
-                            self.record_message(message)
-                            counted += 1
-                except discord.HTTPException as e:
-                    self.bot.logger.warning(
-                        f"Could not read the history of {channel} while catching up on streaks: {e}"
-                    )
+            try:
+                async for message in channel.history(limit=None, after=since):
+                    if not message.author.bot:
+                        self.record_message(message)
+                        counted += 1
+            except discord.HTTPException as e:
+                self.bot.logger.warning(f"Could not read the history of {channel} while catching up on streaks: {e}")
 
-        self.bot.logger.info(f"Counted {counted} messages since {since} towards streaks")
+        self.bot.logger.info(f"Counted {counted} messages in {guild} since {since} towards streaks")
 
     async def insert_cache(self):
         """
