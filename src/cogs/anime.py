@@ -2,11 +2,14 @@ import re
 from datetime import datetime
 
 import discord
-import requests
 from discord import app_commands
 from discord.ext import commands
 
 from cogs.utils import embed_templates
+from cogs.utils import misc_utils
+
+# Anilist roles of the people who made a manga, as opposed to assistants, editors and translators
+MANGA_CREATOR_ROLES = ("Story & Art", "Story", "Art", "Original Story", "Original Creator")
 
 
 class Anime(commands.Cog):
@@ -19,6 +22,7 @@ class Anime(commands.Cog):
         bot (commands.Bot): The bot instance
         """
 
+        self.bot = bot
         self.anilist_logo = "https://anilist.co/img/logo_al.png"
 
     anilist = app_commands.Group(name="anilist", description="Hent informasjon fra Anilist")
@@ -32,7 +36,7 @@ class Anime(commands.Cog):
 
         Parameters
         ----------
-        color (str): The color string returned from the Anilist API
+        color (str): The color string returned from the Anilist API. Either a color name or a hex code like #3db4f2
 
         Returns
         ----------
@@ -48,6 +52,11 @@ class Anime(commands.Cog):
             "green": 0x4CCA51,
             "gray": 0x677B94,
         }
+        if color and color.startswith("#"):
+            try:
+                return int(color[1:], 16)
+            except ValueError:
+                pass
         return colors.get(color, 0x677B94)
 
     def convert_media_format(self, media_format: str) -> str:
@@ -102,7 +111,7 @@ class Anime(commands.Cog):
         }
         return languages.get(language_name, language_name)
 
-    def onvert_role_names(self, role_name: str) -> str:
+    def convert_role_names(self, role_name: str) -> str:
         """
         Translates role names into norwegian
 
@@ -142,13 +151,95 @@ class Anime(commands.Cog):
         }
         return statuses.get(status, status)
 
+    def construct_staff_string(self, staff: list[dict], roles: tuple[str, ...]) -> str:
+        """
+        Lists the staff members with one of the given roles, one per line.
+        Details in parentheses are ignored, so "Director (eps 1-278)" counts as "Director".
+        Stops before going over the 1024 characters an embed field can hold
+
+        Parameters
+        ----------
+        staff (list[dict]): The staff edges returned from the Anilist API
+        roles (tuple[str, ...]): The roles to include
+
+        Returns
+        ----------
+        (str): The constructed string. Empty if nobody has one of the roles
+        """
+
+        lines = []
+        for staff_member in staff:
+            if staff_member["role"].split(" (")[0] not in roles:
+                continue
+
+            name = staff_member["node"]["name"]
+            full_name = f"{name['full']} ({name['native']})" if name["native"] else name["full"]
+            line = f"[{full_name}]({staff_member['node']['siteUrl']})"
+            if len("\n".join([*lines, line])) > 1024:
+                break
+            lines.append(line)
+
+        return "\n".join(lines)
+
+    def get_status_stat(self, statuses: list[dict], status: str, stat: str = "count") -> int:
+        """
+        Gets a statistic for one list status from a user's Anilist statistics
+
+        Parameters
+        ----------
+        statuses (list[dict]): The statuses statistics returned from the Anilist API
+        status (str): The list status, e.g. COMPLETED or PLANNING
+        stat (str): The statistic to get. Defaults to count
+
+        Returns
+        ----------
+        (int): The statistic. 0 if the user has nothing with that status
+        """
+
+        for entry in statuses:
+            if entry["status"] == status:
+                return entry[stat]
+        return 0
+
+    def format_count(self, count: int | None) -> str:
+        """
+        Formats a count from the Anilist API, which is None when Anilist doesn't know it,
+        like the episodes of an anime that is still airing
+
+        Parameters
+        ----------
+        count (int | None): The count
+
+        Returns
+        ----------
+        (str): The formatted count. ? if it is unknown
+        """
+
+        return "?" if count is None else misc_utils.format_number(count)
+
+    def is_nsfw_channel(self, interaction: discord.Interaction) -> bool:
+        """
+        Checks whether the interaction's channel is age-restricted. DMs are never treated as NSFW
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): The interaction that triggered this
+
+        Returns
+        ----------
+        (bool): Whether the channel is age-restricted
+        """
+
+        channel = interaction.channel
+        return isinstance(channel, (discord.abc.GuildChannel, discord.Thread)) and channel.is_nsfw()
+
     def remove_html(self, text: str) -> str:
         """
         Removes HTML tag elements
 
         Parameters
         ----------
-        text: The raw HTML
+        text (str): The raw HTML
 
         Returns
         ----------
@@ -168,7 +259,7 @@ class Anime(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The interaction that triggered this
         query (str): The GraphQL query
         variables (str): The variables for the query
         key (str): The key to return from the response
@@ -180,8 +271,8 @@ class Anime(commands.Cog):
 
         try:
             url = "https://graphql.anilist.co"
-            response = requests.post(url, json={"query": query, "variables": variables}, timeout=10)
-            response = response.json()
+            async with self.bot.http_session.post(url, json={"query": query, "variables": variables}) as response:
+                response = await response.json(content_type=None)
             data = response["data"][key]
             url = data["siteUrl"]
         except TypeError:
@@ -244,31 +335,41 @@ class Anime(commands.Cog):
 
         return "\n".join(favortie_entities)
 
-    def construct_release_schedule_string(self, numbers: dict) -> str:
+    def format_fuzzy_date(self, date: dict) -> str:
+        """
+        Formats an Anilist FuzzyDate, where any part may be missing
+
+        Parameters
+        ----------
+        date (dict): The date with the keys year, month and day returned from the Anilist API
+
+        Returns
+        ----------
+        (str): A Discord timestamp if the date is complete, otherwise day.month.year with ? for missing parts
+        """
+
+        year, month, day = date.get("year"), date.get("month"), date.get("day")
+        if year and month and day:
+            date = misc_utils.localize(datetime(year, month, day), self.bot.timezone)
+            return discord.utils.format_dt(date, style="d")
+        return f"{day or '?'}.{month or '?'}.{year or '?'}"
+
+    def construct_release_schedule_string(self, start_date: dict, end_date: dict) -> str:
         """
         Constructs a string with the media's release schedule
 
         Parameters
         ----------
-        numbers (dict): dict containing release date and end date
+        start_date (dict): The release date returned from the Anilist API
+        end_date (dict): The end date returned from the Anilist API
 
         Returns
         ----------
         (str): The constructed string
         """
 
-        # Release and end date formatting
-        if numbers["start_day"] != "?" and numbers["start_month"] != "?" and numbers["start_year"] != "?":
-            release_date = datetime(numbers["start_year"], numbers["start_month"], numbers["start_day"])
-            release_date = discord.utils.format_dt(release_date, style="d")
-        else:
-            release_date = f'{numbers["start_day"]}.{numbers["start_month"]}.{numbers["start_year"]}'
-
-        if numbers["end_day"] != "?" and numbers["end_month"] != "?" and numbers["end_year"] != "?":
-            end_date = datetime(numbers["end_year"], numbers["end_month"], numbers["end_day"])
-            end_date = discord.utils.format_dt(end_date, style="d")
-        else:
-            end_date = f'{numbers["end_day"]}.{numbers["end_month"]}.{numbers["end_year"]}'
+        release_date = self.format_fuzzy_date(start_date)
+        end_date = self.format_fuzzy_date(end_date)
 
         if release_date == end_date:
             date = release_date
@@ -280,14 +381,16 @@ class Anime(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @anilist_profile.command(name="generelt", description="Viser informasjon om en Anilistprofil")
-    async def anilist_profile_general(self, interaction: discord.Interaction, bruker: str):
+    @app_commands.rename(user="bruker")
+    @app_commands.describe(user="Anilist-brukernavnet")
+    async def anilist_profile_general(self, interaction: discord.Interaction, user: str):
         """
         Shows general information about a user's Anilist profile
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
-        bruker (str): The user to get information about
+        interaction (discord.Interaction): The slash command interaction
+        user (str): The user to get information about
         """
 
         #  GraphQL
@@ -363,7 +466,7 @@ class Anime(commands.Cog):
             }
         }
         """
-        variables = {"name": bruker}
+        variables = {"name": user}
         data, url = await self.request_anilist(interaction, query, variables, "User")
 
         if not data:
@@ -375,21 +478,8 @@ class Anime(commands.Cog):
         chapters_read = data["statistics"]["manga"]["chaptersRead"]
         color = self.convert_color(data["options"]["profileColor"])
 
-        anime_statuses = {
-            status["status"]: {"count": status["count"]} for status in data["statistics"]["anime"]["statuses"]
-        }
-        manga_statuses = {
-            status["status"]: {"count": status["count"]} for status in data["statistics"]["manga"]["statuses"]
-        }
-
-        try:
-            anime_completed = anime_statuses["COMPLETED"]["count"]
-        except KeyError:
-            anime_completed = 0
-        try:
-            manga_completed = manga_statuses["COMPLETED"]["count"]
-        except KeyError:
-            manga_completed = 0
+        anime_completed = self.get_status_stat(data["statistics"]["anime"]["statuses"], "COMPLETED")
+        manga_completed = self.get_status_stat(data["statistics"]["manga"]["statuses"], "COMPLETED")
 
         favourite_anime = self.construct_favorite_media_string(data["favourites"]["anime"]["nodes"])
         favourite_manga = self.construct_favorite_media_string(data["favourites"]["manga"]["nodes"])
@@ -400,10 +490,10 @@ class Anime(commands.Cog):
         embed = discord.Embed(title=user_name, color=color, url=url)
         embed.set_author(name="Anilist", icon_url=self.anilist_logo)
         embed.set_thumbnail(url=profile_pic)
-        embed.add_field(name="Antall dager sett", value=days_watched)
-        embed.add_field(name="Antall anime sett", value=anime_completed)
-        embed.add_field(name="Antall kapitler lest", value=chapters_read)
-        embed.add_field(name="Antall manga lest", value=manga_completed)
+        embed.add_field(name="Antall dager sett", value=misc_utils.format_number(days_watched))
+        embed.add_field(name="Antall anime sett", value=misc_utils.format_number(anime_completed))
+        embed.add_field(name="Antall kapitler lest", value=misc_utils.format_number(chapters_read))
+        embed.add_field(name="Antall manga lest", value=misc_utils.format_number(manga_completed))
         if favourite_anime:
             embed.add_field(name="Noen favorittanime", value=favourite_anime, inline=False)
         if favourite_manga:
@@ -412,21 +502,23 @@ class Anime(commands.Cog):
             embed.add_field(name="Noen favorittkarakterer", value=favourite_character, inline=False)
         if favourite_studio:
             embed.add_field(name="Noen favorittstudioer", value=favourite_studio, inline=False)
-        if favourite_studio:
+        if favourite_staff:
             embed.add_field(name="Noen favorittskapere", value=favourite_staff, inline=False)
         await interaction.response.send_message(embed=embed)
 
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @anilist_profile.command(name="anime", description="Se statistikk om animetittingen til en bruker")
-    async def anilist_profile_anime_stats(self, interaction: discord.Interaction, bruker: str):
+    @app_commands.rename(user="bruker")
+    @app_commands.describe(user="Anilist-brukernavnet")
+    async def anilist_profile_anime_stats(self, interaction: discord.Interaction, user: str):
         """
         Shows anime viewing statistics from a user's Anilist profile
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
-        bruker (str): The user to get information about
+        interaction (discord.Interaction): The slash command interaction
+        user (str): The user to get information about
         """
 
         #  GraphQL
@@ -465,7 +557,7 @@ class Anime(commands.Cog):
             }
         }
         """
-        variables = {"name": bruker}
+        variables = {"name": user}
         data, url = await self.request_anilist(interaction, query, variables, "User")
 
         if not data:
@@ -477,33 +569,15 @@ class Anime(commands.Cog):
         episodes_watched = data["statistics"]["anime"]["episodesWatched"]
         color = self.convert_color(data["options"]["profileColor"])
 
-        statuses = {
-            status["status"]: {"count": status["count"], "minutes": status["minutesWatched"]}
-            for status in data["statistics"]["anime"]["statuses"]
-        }
-
-        try:
-            completed = statuses["COMPLETED"]["count"]
-        except KeyError:
-            completed = 0
-        try:
-            watching = statuses["CURRENT"]["count"]
-        except KeyError:
-            watching = 0
-        try:
-            planning = statuses["PLANNING"]["count"]
-            planning_days = round(statuses["PLANNING"]["minutes"] / 1440, 1)
-        except KeyError:
-            planning = 0
-            planning_days = 0
-        try:
-            dropped = statuses["DROPPED"]["count"]
-        except KeyError:
-            dropped = 0
+        statuses = data["statistics"]["anime"]["statuses"]
+        completed = self.get_status_stat(statuses, "COMPLETED")
+        watching = self.get_status_stat(statuses, "CURRENT")
+        planning = self.get_status_stat(statuses, "PLANNING")
+        planning_days = round(self.get_status_stat(statuses, "PLANNING", "minutesWatched") / 1440, 1)
+        dropped = self.get_status_stat(statuses, "DROPPED")
 
         anime_mean_score = data["statistics"]["anime"]["meanScore"]
-        if not anime_mean_score:
-            anime_mean_score = "**Ingen**"
+        anime_mean_score = misc_utils.format_number(anime_mean_score) if anime_mean_score else "**Ingen**"
 
         most_watched_genres = ", ".join([genre["genre"] for genre in data["statistics"]["anime"]["genres"]])
         most_watched_studios = self.construct_favorite_entity_string(data["statistics"]["anime"]["studios"])
@@ -512,12 +586,15 @@ class Anime(commands.Cog):
         embed.set_author(name="Anilist", icon_url=self.anilist_logo)
         embed.set_thumbnail(url=profile_pic)
         embed.add_field(name="Gj.snittsvurdering gitt", value=anime_mean_score)
-        embed.add_field(name="Antall dager sett", value=days_watched)
-        embed.add_field(name="Antall episoder sett", value=episodes_watched)
-        embed.add_field(name="Antall anime sett", value=completed)
-        embed.add_field(name="Ser på nå", value=watching)
-        embed.add_field(name="Planlegger å se", value=f"{planning}\n({planning_days} dager)")
-        embed.add_field(name="Droppet", value=dropped)
+        embed.add_field(name="Antall dager sett", value=misc_utils.format_number(days_watched))
+        embed.add_field(name="Antall episoder sett", value=misc_utils.format_number(episodes_watched))
+        embed.add_field(name="Antall anime sett", value=misc_utils.format_number(completed))
+        embed.add_field(name="Ser på nå", value=misc_utils.format_number(watching))
+        embed.add_field(
+            name="Planlegger å se",
+            value=f"{misc_utils.format_number(planning)}\n({misc_utils.format_number(planning_days)} dager)",
+        )
+        embed.add_field(name="Droppet", value=misc_utils.format_number(dropped))
         if most_watched_genres:
             embed.add_field(name="Mest sette sjangere", value=most_watched_genres, inline=False)
         if most_watched_studios:
@@ -527,14 +604,16 @@ class Anime(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @anilist_profile.command(name="manga", description="Se statistikk om mangalesingen til en bruker")
-    async def anilist_profile_manga_stats(self, interaction: discord.Interaction, bruker: str):
+    @app_commands.rename(user="bruker")
+    @app_commands.describe(user="Anilist-brukernavnet")
+    async def anilist_profile_manga_stats(self, interaction: discord.Interaction, user: str):
         """
         Shows manga reading statistics from a user's Anilist profile
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
-        bruker (str): The user to get information about
+        interaction (discord.Interaction): The slash command interaction
+        user (str): The user to get information about
         """
 
         #  GraphQL
@@ -575,7 +654,7 @@ class Anime(commands.Cog):
             }
         }
         """
-        variables = {"name": bruker}
+        variables = {"name": user}
         data, url = await self.request_anilist(interaction, query, variables, "User")
 
         if not data:
@@ -583,37 +662,19 @@ class Anime(commands.Cog):
 
         user_name = data["name"]
         profile_pic = data["avatar"]["large"]
-        chapters_read = round(data["statistics"]["manga"]["chaptersRead"] / 1440, 1)
+        chapters_read = data["statistics"]["manga"]["chaptersRead"]
         volumes_read = data["statistics"]["manga"]["volumesRead"]
         color = self.convert_color(data["options"]["profileColor"])
 
-        statuses = {
-            status["status"]: {"count": status["count"], "minutes": status["chaptersRead"]}
-            for status in data["statistics"]["manga"]["statuses"]
-        }
-
-        try:
-            completed = statuses["COMPLETED"]["count"]
-        except KeyError:
-            completed = 0
-        try:
-            reading = statuses["CURRENT"]["count"]
-        except KeyError:
-            reading = 0
-        try:
-            planning = statuses["PLANNING"]["count"]
-            planning_days = statuses["PLANNING"]["chaptersRead"]
-        except KeyError:
-            planning = 0
-            planning_days = 0
-        try:
-            dropped = statuses["DROPPED"]["count"]
-        except KeyError:
-            dropped = 0
+        statuses = data["statistics"]["manga"]["statuses"]
+        completed = self.get_status_stat(statuses, "COMPLETED")
+        reading = self.get_status_stat(statuses, "CURRENT")
+        planning = self.get_status_stat(statuses, "PLANNING")
+        planning_chapters = self.get_status_stat(statuses, "PLANNING", "chaptersRead")
+        dropped = self.get_status_stat(statuses, "DROPPED")
 
         manga_mean_score = data["statistics"]["manga"]["meanScore"]
-        if manga_mean_score == 0:
-            manga_mean_score = "**Ingen**"
+        manga_mean_score = misc_utils.format_number(manga_mean_score) if manga_mean_score else "**Ingen**"
 
         most_read_genres = ", ".join([genre["genre"] for genre in data["statistics"]["manga"]["genres"]])
         most_read_staff = self.construct_favorite_entity_string(data["statistics"]["manga"]["staff"])
@@ -622,12 +683,15 @@ class Anime(commands.Cog):
         embed.set_author(name="Anilist", icon_url=self.anilist_logo)
         embed.set_thumbnail(url=profile_pic)
         embed.add_field(name="Gj.snittsvurdering gitt", value=manga_mean_score)
-        embed.add_field(name="Antall kapitler lest", value=chapters_read)
-        embed.add_field(name="Antall volum lest", value=volumes_read)
-        embed.add_field(name="Antall manga lest", value=completed)
-        embed.add_field(name="Leser nå", value=reading)
-        embed.add_field(name="Planlegger å lese", value=f"{planning}\n({planning_days} kapitler)")
-        embed.add_field(name="Droppet", value=dropped)
+        embed.add_field(name="Antall kapitler lest", value=misc_utils.format_number(chapters_read))
+        embed.add_field(name="Antall volum lest", value=misc_utils.format_number(volumes_read))
+        embed.add_field(name="Antall manga lest", value=misc_utils.format_number(completed))
+        embed.add_field(name="Leser nå", value=misc_utils.format_number(reading))
+        embed.add_field(
+            name="Planlegger å lese",
+            value=f"{misc_utils.format_number(planning)}\n({misc_utils.format_number(planning_chapters)} {'kapittel' if planning_chapters == 1 else 'kapitler'})",
+        )
+        embed.add_field(name="Droppet", value=misc_utils.format_number(dropped))
         if most_read_genres:
             embed.add_field(name="Mest leste sjangere", value=most_read_genres, inline=False)
         if most_read_staff:
@@ -637,14 +701,16 @@ class Anime(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @anilist.command(name="anime", description="Hent informasjon om en anime")
-    async def anilist_anime(self, interaction: discord.Interaction, navn: str):
+    @app_commands.rename(search="navn")
+    @app_commands.describe(search="Navnet på animen")
+    async def anilist_anime(self, interaction: discord.Interaction, search: str):
         """
         Shows information about an anime
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
-        navn (str): The name of the anime to fetch information about
+        interaction (discord.Interaction): The slash command interaction
+        search (str): The name of the anime to fetch information about
         """
 
         #  GraphQL
@@ -686,14 +752,13 @@ class Anime(commands.Cog):
                         siteUrl
                     }
                 }
-                staff (sort: ROLE) {
+                staff (sort: RELEVANCE) {
                     edges {
                         role
                         node {
                             siteUrl
                             name {
-                                first
-                                last
+                                full
                                 native
                             }
                         }
@@ -702,14 +767,14 @@ class Anime(commands.Cog):
             }
         }
         """
-        variables = {"search": navn, "isMain": True}
+        variables = {"search": search, "isMain": True}
         data, url = await self.request_anilist(interaction, query, variables, "Media")
 
         if not data:
             return
 
         nsfw = data["isAdult"]
-        if nsfw:
+        if nsfw and not self.is_nsfw_channel(interaction):
             embed = embed_templates.error_warning(
                 "Animen du søkte på er NSFW. Gjør kommandoen i en NSFW-kanal i stedet"
             )
@@ -731,40 +796,19 @@ class Anime(commands.Cog):
         genres = ", ".join(data["genres"])
         studios_string = self.construct_favorite_entity_string(data["studios"]["nodes"], studio=True)
 
-        staff = data["staff"]["edges"]
-        director_string = ""
-        for staff_member in staff:
-            if staff_member["role"] == "Director":
-                director_first_name = staff_member["node"]["name"]["first"]
-                director_last_name = staff_member["node"]["name"]["last"]
-                director_native_name = staff_member["node"]["name"]["native"]
-                director_url = staff_member["node"]["siteUrl"]
-                director_string += (
-                    f"[{director_first_name} {director_last_name} " + f"({director_native_name})]({director_url})"
-                )
+        director_string = self.construct_staff_string(data["staff"]["edges"], ("Director",))
 
         episodes = data["episodes"]
         duration = data["duration"]
 
-        numbers = {
-            "episodes": episodes,
-            "duration": duration,
-            "start_day": data["startDate"].get("day") if data["startDate"].get("day") else "?",
-            "start_month": data["startDate"].get("month") if data["startDate"].get("month") else "?",
-            "start_year": data["startDate"].get("year") if data["startDate"].get("year") else "?",
-            "end_day": data["endDate"].get("day") if data["endDate"].get("day") else "?",
-            "end_month": data["endDate"].get("month") if data["endDate"].get("month") else "?",
-            "end_year": data["endDate"].get("year") if data["endDate"].get("year") else "?",
-        }
-
-        date = self.construct_release_schedule_string(numbers)
+        date = self.construct_release_schedule_string(data["startDate"], data["endDate"])
 
         length_string = ""
-        if numbers["duration"] == 1:
+        if duration == 1:
             length_string += "minutt "
         else:
             length_string += "minutter "
-        if numbers["episodes"] == 1:
+        if episodes == 1:
             length_string += "lang"
         else:
             length_string += "lange"
@@ -787,11 +831,17 @@ class Anime(commands.Cog):
             embed.add_field(name="Regissør", value=director_string)
         embed.add_field(name="Utgivelsesdato", value=date)
         if media_format == "Film":
-            embed.add_field(name="Lengde", value=f"{duration} minutter")
+            embed.add_field(
+                name="Lengde", value=f"{self.format_count(duration)} {'minutt' if duration == 1 else 'minutter'}"
+            )
+        elif duration is None:
+            embed.add_field(name="Episoder", value=self.format_count(episodes))
         else:
-            embed.add_field(name="Episoder", value=f"{episodes} ({duration} {length_string})")
+            embed.add_field(
+                name="Episoder", value=f"{self.format_count(episodes)} ({self.format_count(duration)} {length_string})"
+            )
         if mean_score:
-            embed.add_field(name="Gj.snittsvurdering", value=f"{mean_score}/100")
+            embed.add_field(name="Gj.snittsvurdering", value=f"{misc_utils.format_number(mean_score)}/100")
         embed.add_field(name="Sjangere", value=genres)
         if len(description) < 1024 and description:
             embed.add_field(name="Sammendrag", value=description, inline=False)
@@ -802,14 +852,16 @@ class Anime(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @anilist.command(name="manga", description="Hent informasjon om en manga")
-    async def anilist_manga(self, interaction: discord.Interaction, navn: str):
+    @app_commands.rename(search="navn")
+    @app_commands.describe(search="Navnet på mangaen")
+    async def anilist_manga(self, interaction: discord.Interaction, search: str):
         """
         Shows information about a manga
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
-        navn (str): The name of the manga to fetch information about
+        interaction (discord.Interaction): The slash command interaction
+        search (str): The name of the manga to fetch information about
         """
 
         query = """
@@ -844,14 +896,13 @@ class Anime(commands.Cog):
                         english
                         native
                     }
-                    staff(sort: ROLE) {
+                    staff(sort: RELEVANCE) {
                         edges {
                             role
                             node {
                                 siteUrl
                                 name {
-                                    first
-                                    last
+                                    full
                                     native
                                 }
                             }
@@ -860,14 +911,14 @@ class Anime(commands.Cog):
                 }
             }
             """
-        variables = {"search": navn}
+        variables = {"search": search}
         data, url = await self.request_anilist(interaction, query, variables, "Media")
 
         if not data:
             return
 
         nsfw = data["isAdult"]
-        if nsfw:
+        if nsfw and not self.is_nsfw_channel(interaction):
             embed = embed_templates.error_warning(
                 "Mangaen du søkte på er NSFW. Gjør kommandoen i en NSFW-kanal i stedet"
             )
@@ -888,29 +939,14 @@ class Anime(commands.Cog):
         description = self.remove_html(data["description"]) if data.get("description") else ""
         genres = ", ".join(data["genres"])
 
-        staff = data["staff"]["edges"]
-        staff_string = ""
-        for staff_member in staff:
-            staff_first_name = staff_member["node"]["name"]["first"]
-            staff_last_name = staff_member["node"]["name"]["last"]
-            staff_native_name = staff_member["node"]["name"]["native"]
-            staff_url = staff_member["node"]["siteUrl"]
-            staff_string += f"[{staff_first_name} {staff_last_name} ({staff_native_name})]({staff_url})\n"
+        staff_string = self.construct_staff_string(data["staff"]["edges"], MANGA_CREATOR_ROLES)
 
-        numbers = {
-            "chapters": data["chapters"],
-            "volumes": data["volumes"],
-            "start_day": data["startDate"].get("day") if data["startDate"].get("day") else "?",
-            "start_month": data["startDate"].get("month") if data["startDate"].get("month") else "?",
-            "start_year": data["startDate"].get("year") if data["startDate"].get("year") else "?",
-            "end_day": data["endDate"].get("day") if data["endDate"].get("day") else "?",
-            "end_month": data["endDate"].get("month") if data["endDate"].get("month") else "?",
-            "end_year": data["endDate"].get("year") if data["endDate"].get("year") else "?",
-        }
-        date = self.construct_release_schedule_string(numbers)
+        chapters = data["chapters"]
+        volumes = data["volumes"]
+        date = self.construct_release_schedule_string(data["startDate"], data["endDate"])
 
         chapters_string = ""
-        if numbers["chapters"] == 1:
+        if chapters == 1:
             chapters_string += "kapittel"
         else:
             chapters_string += "kapitler"
@@ -928,9 +964,11 @@ class Anime(commands.Cog):
         if staff_string:
             embed.add_field(name="Laget av", value=staff_string)
         embed.add_field(name="Utgivelsesdato", value=date)
-        embed.add_field(name="Lengde", value=f'{numbers["chapters"]} {chapters_string}\n{numbers["volumes"]} volum')
+        embed.add_field(
+            name="Lengde", value=f"{self.format_count(chapters)} {chapters_string}\n{self.format_count(volumes)} volum"
+        )
         if mean_score:
-            embed.add_field(name="Gj.snittsvurdering", value=f"{mean_score}/100")
+            embed.add_field(name="Gj.snittsvurdering", value=f"{misc_utils.format_number(mean_score)}/100")
         embed.add_field(name="Sjangere", value=genres)
         if len(description) < 1024 and description:
             embed.add_field(name="Sammendrag", value=description, inline=False)
@@ -941,14 +979,16 @@ class Anime(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @anilist.command(name="karakter", description="Hent informasjon om en karakter")
-    async def anilist_character(self, interaction: discord.Interaction, navn: str):
+    @app_commands.rename(search="navn")
+    @app_commands.describe(search="Navnet på karakteren")
+    async def anilist_character(self, interaction: discord.Interaction, search: str):
         """
         Shows information about a character
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
-        navn (str): The name of the character to fetch information about
+        interaction (discord.Interaction): The slash command interaction
+        search (str): The name of the character to fetch information about
         """
 
         query = """
@@ -987,7 +1027,7 @@ class Anime(commands.Cog):
                 }
             }
             """
-        variables = {"search": navn}
+        variables = {"search": search}
         data, url = await self.request_anilist(interaction, query, variables, "Character")
 
         if not data:
@@ -1011,13 +1051,13 @@ class Anime(commands.Cog):
             nsfwtag = "🔞" if media["node"]["isAdult"] else ""
             media_name = media["node"]["title"]["romaji"]
             media_url = media["node"]["siteUrl"]
-            media_role = self.onvert_role_names(media["characterRole"])
+            media_role = self.convert_role_names(media["characterRole"])
             for voice_actor in media["voiceActors"]:
                 voice_actor_url = voice_actor["siteUrl"]
                 voice_actor_language = self.convert_language_names(voice_actor["language"])
                 voice_actor_name = voice_actor["name"]["full"]
                 if voice_actor["name"]["native"] != " " and voice_actor["name"]["native"] is not None:
-                    voice_actor_name += f' ({voice_actor["name"]["native"]}'
+                    voice_actor_name += f' ({voice_actor["name"]["native"]})'
                 voice_actors.append(f"\t* {voice_actor_language} stemme: [{voice_actor_name}]({voice_actor_url})")
 
             voice_actors_string = "\n".join(voice_actors)
@@ -1035,14 +1075,16 @@ class Anime(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @anilist.command(name="skaper", description="Hent informasjon om en skaper")
-    async def anilist_creator(self, interaction: discord.Interaction, navn: str):
+    @app_commands.rename(search="navn")
+    @app_commands.describe(search="Navnet på skaperen")
+    async def anilist_creator(self, interaction: discord.Interaction, search: str):
         """
         Shows information about a creator
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
-        navn (str): The name of the creator to fetch information about
+        interaction (discord.Interaction): The slash command interaction
+        search (str): The name of the creator to fetch information about
         """
 
         query = """
@@ -1085,7 +1127,7 @@ class Anime(commands.Cog):
                 }
             }
             """
-        variables = {"search": navn}
+        variables = {"search": search}
         data, url = await self.request_anilist(interaction, query, variables, "Staff")
 
         if not data:
@@ -1117,7 +1159,7 @@ class Anime(commands.Cog):
             character_url = character["node"]["siteUrl"]
             character_name = character["node"]["name"]["full"]
             if character["node"]["name"]["native"] != " " and character["node"]["name"]["native"] is not None:
-                character_name += f' ({character["node"]["name"]["native"]}'
+                character_name += f' ({character["node"]["name"]["native"]})'
             characters.append(f"* [{character_name}]({character_url})")
         characters = "\n".join(characters)
 
@@ -1134,14 +1176,16 @@ class Anime(commands.Cog):
     @app_commands.checks.bot_has_permissions(embed_links=True)
     @app_commands.checks.cooldown(1, 5)
     @anilist.command(name="studio", description="Hent informasjon om et studio")
-    async def anilist_studio(self, interaction: discord.Interaction, navn: str):
+    @app_commands.rename(search="navn")
+    @app_commands.describe(search="Navnet på studioet")
+    async def anilist_studio(self, interaction: discord.Interaction, search: str):
         """
         Shows information about a studio
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
-        navn (str): The name of the studio to fetch information about
+        interaction (discord.Interaction): The slash command interaction
+        search (str): The name of the studio to fetch information about
         """
 
         query = """
@@ -1165,7 +1209,7 @@ class Anime(commands.Cog):
                 }
                 }
             """
-        variables = {"search": navn}
+        variables = {"search": search}
         data, url = await self.request_anilist(interaction, query, variables, "Studio")
 
         if not data:
@@ -1198,9 +1242,10 @@ class Anime(commands.Cog):
                 }
                 }
             """
-        data = requests.post(
-            "https://graphql.anilist.co", json={"query": query2, "variables": variables}, timeout=10
-        ).json()
+        async with self.bot.http_session.post(
+            "https://graphql.anilist.co", json={"query": query2, "variables": variables}
+        ) as response:
+            data = await response.json(content_type=None)
         data = data["data"]["Studio"]
 
         recent_media = []
@@ -1233,7 +1278,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(Anime(bot))

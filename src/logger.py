@@ -9,6 +9,10 @@ class BotLogger:
     """Logging config for the bot"""
 
     def __init__(self):
+        """
+        Log to the console and to a new file in logs/ for every run
+        """
+
         logger = logging.getLogger("discord")
         logger.setLevel(logging.INFO)
         formatter = logging.Formatter(

@@ -1,6 +1,6 @@
 import random
-from datetime import datetime
 
+import discord
 from discord.ext import commands
 from discord.ext import tasks
 
@@ -11,29 +11,50 @@ class RepeatedMessages(commands.Cog):
     """Send messages at specific points of time"""
 
     def __init__(self, bot: commands.Bot):
-        self.bot = bot
-        self.general_channel = 747542544291987597
+        """
+        Parameters
+        ----------
+        bot (commands.Bot): The bot instance
+        """
 
-        #self.fredag.start()
-        #self.mandag.start()
+        self.bot = bot
+
+        # self.fredag.start()
+        # self.mandag.start()
         self.new_year.start()
 
     def cog_unload(self):
-        #self.fredag.cancel()
-        #self.mandag.cancel()
+        # self.fredag.cancel()
+        # self.mandag.cancel()
+        """
+        Stop the repeated messages when the cog is unloaded
+        """
+
         self.new_year.cancel()
 
+    def get_general_channel(self) -> discord.TextChannel | None:
+        """
+        Returns
+        ----------
+        (discord.TextChannel | None): The channel to post repeated messages in. None if it can't be found
+        """
+
+        if not (channel := self.bot.get_channel(self.bot.channel_ids.get("general"))):
+            self.bot.logger.warning("Could not find the general channel. Check ids.channels.general in the config")
+        return channel
+
     @tasks.loop(time=misc_utils.MIDNIGHT)
+    @misc_utils.log_errors
     async def fredag(self):
         """
         Sends a message on Friday at 00:00
         """
 
-        if datetime.now().weekday() != 4:
+        if discord.utils.utcnow().astimezone(self.bot.timezone).weekday() != 4:
             return
 
-        guild = self.bot.get_guild(self.bot.UIO_GAMING_GUILD_ID)
-        channel = guild.get_channel(self.general_channel)
+        if not (channel := self.get_general_channel()):
+            return
 
         videos = [
             "https://cdn.discordapp.com/attachments/750052141346979850/851216786259181578/video0.mp4",
@@ -56,14 +77,15 @@ class RepeatedMessages(commands.Cog):
         await channel.send("NU ÄR DET FREDAG!\n" + video)
 
     @tasks.loop(time=misc_utils.MIDNIGHT)
+    @misc_utils.log_errors
     async def mandag(self):
         """
         Sends a message on Monday at 00:00
         """
-        if datetime.now().weekday() != 0:
+        if discord.utils.utcnow().astimezone(self.bot.timezone).weekday() != 0:
             return
-        guild = self.bot.get_guild(self.bot.UIO_GAMING_GUILD_ID)
-        channel = guild.get_channel(self.general_channel)
+        if not (channel := self.get_general_channel()):
+            return
         await channel.send(
             "ENDELIG MANDAG!\n\n"
             + "https://cdn.discordapp.com/attachments/678396498089738250/1168644637687283762/Snapchat-1787493720.mp4"  # noqa: E501
@@ -71,16 +93,18 @@ class RepeatedMessages(commands.Cog):
         )
 
     @tasks.loop(time=misc_utils.MIDNIGHT)
+    @misc_utils.log_errors
     async def new_year(self):
         """
         Sends a message on New Year's Day at 00:00
         """
 
-        if datetime.now().month != 1 or datetime.now().day != 1:
+        today = discord.utils.utcnow().astimezone(self.bot.timezone)
+        if today.month != 1 or today.day != 1:
             return
 
-        guild = self.bot.get_guild(self.bot.UIO_GAMING_GUILD_ID)
-        channel = guild.get_channel(self.general_channel)
+        if not (channel := self.get_general_channel()):
+            return
         await channel.send("GODT NYTTÅR!\n\nNå, meld dere inn i UiO Gaming igjen <:ThisIsAThreat:874998234072903710>")
 
 
@@ -90,7 +114,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(RepeatedMessages(bot))

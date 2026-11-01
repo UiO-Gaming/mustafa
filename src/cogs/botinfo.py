@@ -1,12 +1,20 @@
 import platform
-from os import environ
+from collections import Counter
 from os import getpid
+from os.path import exists
 from time import time
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 from psutil import Process
+
+from cogs.utils import discord_utils
+from cogs.utils import embed_templates
+from cogs.utils import misc_utils
+
+# Shown as the dev when neither a dev is set in the config nor the application belongs to a team
+FALLBACK_DEV_ID = 170506717140877312
 
 
 class BotInfo(commands.Cog):
@@ -23,69 +31,58 @@ class BotInfo(commands.Cog):
 
     @app_commands.checks.bot_has_permissions(embed_links=True, external_emojis=True)
     @app_commands.checks.cooldown(1, 2)
-    @app_commands.command(name="botinfo", description="Se informajson om botten")
+    @app_commands.command(name="botinfo", description="Se informasjon om botten")
     async def botinfo(self, interaction: discord.Interaction):
         """
         View information about the bot
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         # Dev user info
-        dev = await self.bot.fetch_user(170506717140877312)
+        team = None
+        if dev_id := self.bot.user_ids.get("dev"):
+            dev = await self.bot.fetch_user(dev_id)
+        else:
+            app_info = self.bot.application or await self.bot.application_info()
+            team = app_info.team
+            if not team:
+                dev = self.bot.get_user(FALLBACK_DEV_ID) or await self.bot.fetch_user(FALLBACK_DEV_ID)
 
         # Memory usage
         process = Process(getpid())
         memory_usage = round(process.memory_info().rss / 1000000, 1)
 
         # Member stats
-        #
-        # This is a pretty stupid way of doing things but it's the best I can come up with.
-        # Using curly brackets for both dicts and sets is retarded becuase
-        # I have to do this shit in order to create a fucking empty set.
-        #
-        # Apparently you can't access user presences, only member presences
-        # Because of that I have to use sets instead of ints in order to not count duplicate users.
-        # Fucking hell discord...
-        total_members = set([])
-        online_members = set([])
-        idle_members = set([])
-        dnd_members = set([])
-        offline_members = set([])
-        for guild in self.bot.guilds:
-            for member in guild.members:
-                total_members.add(member.id)
-                if str(member.status) == "online":
-                    online_members.add(member.id)
-                elif str(member.status) == "idle":
-                    idle_members.add(member.id)
-                elif str(member.status) == "dnd":
-                    dnd_members.add(member.id)
-                elif str(member.status) == "offline":
-                    offline_members.add(member.id)
+        # Presences are only available on members, and a user in several servers shows up once per server,
+        # so key by id to count every user once
+        statuses = {member.id: member.status for member in self.bot.get_all_members()}
+        status_counts = Counter(statuses.values())
 
         # Build embed
         embed = discord.Embed(color=interaction.client.user.color, url=self.bot.misc["website"])
-        embed.set_author(name=dev.name, icon_url=dev.display_avatar)
+        if team:
+            embed.set_author(name=team.name, icon_url=team.icon)
+        else:
+            embed.set_author(name=dev.name, icon_url=dev.display_avatar)
         embed.set_thumbnail(url=self.bot.user.display_avatar)
-        embed.add_field(name="Dev", value=f"{dev.mention}\n{dev.display_name}")
+        embed.add_field(name="Dev", value=team.name if team else f"{dev.mention}\n{dev.display_name}")
         embed.add_field(name="Oppetid", value=self.get_uptime())
-        embed.add_field(name="Ping", value=f"Websocket ping: {self.get_ping()} ms")
-        embed.add_field(name="Servere", value=len(self.bot.guilds))
+        embed.add_field(name="Ping", value=f"Websocket ping: {misc_utils.format_number(self.get_ping())} ms")
+        embed.add_field(name="Servere", value=misc_utils.format_number(len(self.bot.guilds)))
         embed.add_field(name="Discord.py", value=discord.__version__)
         embed.add_field(name="Python", value=platform.python_version())
-        embed.add_field(name="Ressursbruk", value=f"RAM: {memory_usage} MB")
+        embed.add_field(name="Ressursbruk", value=f"RAM: {misc_utils.format_number(memory_usage)} MB")
         embed.add_field(name="Kernel", value=f"{platform.system()} {platform.release()}")
-        if "docker" in environ:
-            embed.add_field(name="Docker", value="U+FE0F")
+        if exists("/.dockerenv"):
+            embed.add_field(name="Docker", value="✅")
+        if version := self.bot.version:
+            embed.add_field(name="Versjon", value=f"`{version.branch}`\n{self.commit_link(version)}")
         embed.add_field(
-            name=f"Brukere ({len(total_members)})",
-            value=f'{self.bot.emoji["online"]}{len(online_members)}\n'
-            + f'{self.bot.emoji["idle"]}{len(idle_members)}\n'
-            + f'{self.bot.emoji["dnd"]}{len(dnd_members)}\n'
-            + f'{self.bot.emoji["offline"]}{len(offline_members)}',
+            name=f"Brukere ({misc_utils.format_number(len(statuses))})",
+            value=discord_utils.format_status_counts(status_counts, self.bot.emoji, "\n"),
         )
         embed.add_field(
             name="Lenker",
@@ -102,7 +99,7 @@ class BotInfo(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         embed = discord.Embed(color=interaction.client.user.color)
@@ -118,12 +115,58 @@ class BotInfo(commands.Cog):
 
         Parameters
         ----------
-        interaction (discord.Interaction): Slash command context object
+        interaction (discord.Interaction): The slash command interaction
         """
 
         embed = discord.Embed(color=interaction.client.user.color)
-        embed.add_field(name="📶 Ping", value=f"* **Websocket ping:** {self.get_ping()} ms\n* **I hodet:** ∞")
+        embed.add_field(
+            name="📶 Ping",
+            value=f"* **Websocket ping:** {misc_utils.format_number(self.get_ping())} ms\n* **I hodet:** ∞",
+        )
         await interaction.response.send_message(embed=embed, content=None)
+
+    @app_commands.checks.bot_has_permissions(embed_links=True)
+    @app_commands.checks.cooldown(1, 2)
+    @app_commands.command(name="versjon", description="Se hvilken branch og commit botten kjører")
+    async def version(self, interaction: discord.Interaction):
+        """
+        View the branch and commit the bot is running
+
+        Parameters
+        ----------
+        interaction (discord.Interaction): The slash command interaction
+        """
+
+        if not (version := self.bot.version):
+            embed = embed_templates.error_warning("Fant ikke versjonen. Botten kjører kanskje ikke fra et git-repo")
+            return await interaction.response.send_message(embed=embed)
+
+        embed = discord.Embed(color=interaction.client.user.color, title="Versjon")
+        embed.add_field(name="Branch", value=f"`{version.branch}`")
+        embed.add_field(name="Commit", value=self.commit_link(version))
+        embed.add_field(name="Dato", value=discord.utils.format_dt(version.committed, style="f"))
+        embed.add_field(name="Melding", value=discord.utils.escape_markdown(version.subject), inline=False)
+        if version.dirty:
+            embed.set_footer(text="Kjører med endringer som ikke er committet")
+        await interaction.response.send_message(embed=embed)
+
+    def commit_link(self, version: misc_utils.GitVersion) -> str:
+        """
+        Format the commit as a link to it in the source code repository
+
+        Parameters
+        ----------
+        version (misc_utils.GitVersion): The version the bot runs
+
+        Returns
+        ----------
+        (str): The short commit hash, linked if the source code url is configured
+        """
+
+        short = f"`{version.commit[:7]}`"
+        if source_code := self.bot.misc.get("source_code"):
+            return f"[{short}]({source_code}/commit/{version.commit})"
+        return short
 
     def get_ping(self) -> int:
         """
@@ -131,7 +174,7 @@ class BotInfo(commands.Cog):
 
         Returns
         ----------
-        (int) The bot's ping in milliseconds
+        (int): The bot's ping in milliseconds
         """
 
         return int(self.bot.latency * 1000)
@@ -142,7 +185,7 @@ class BotInfo(commands.Cog):
 
         Returns
         ----------
-        (str) The bot's uptime in human readable format
+        (str): The bot's uptime in human readable format
         """
 
         now = time()
@@ -160,7 +203,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(BotInfo(bot))

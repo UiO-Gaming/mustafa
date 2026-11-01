@@ -1,16 +1,26 @@
+import asyncio
+import datetime
+import signal
+from os import environ
 from os import listdir
+from os.path import realpath
 from time import time
+from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfoNotFoundError
 
+import aiohttp
 import discord
-import psycopg2
 import yaml
 from discord.ext import commands
+from psycopg_pool import AsyncConnectionPool
 
+from cogs.utils import database
+from cogs.utils import misc_utils
 from logger import BotLogger
 
-UIO_GAMING_GUILD_ID = 747542543750660178
 DATABASE_RELIANT_COGS = {
     "birthday.py",
+    "funreplies.py",
     "gullkorn.py",
     "mc_whitelist.py",
     "social_credit.py",
@@ -33,6 +43,10 @@ class Bot(commands.Bot):
     """UiO Gaming Bot"""
 
     def __init__(self):
+        """
+        Read the config and disable the cogs whose credentials are missing
+        """
+
         super().__init__(
             command_prefix=commands.when_mentioned_or(config["bot"]["prefix"]),
             case_insensitive=True,
@@ -45,14 +59,23 @@ class Bot(commands.Bot):
         self.cog_files = set(listdir("./src/cogs"))
 
         # Check for missing credentials
+        self.db_pool = None
         if self.check_credentials(config["database"], DATABASE_RELIANT_COGS):
-            self.db_connection = psycopg2.connect(
-                host=config["database"]["host"],
-                dbname=config["database"]["dbname"],
-                user=config["database"]["username"],
-                password=config["database"]["password"],
+            self.db_pool = AsyncConnectionPool(
+                kwargs={
+                    "host": config["database"]["host"],
+                    "dbname": config["database"]["dbname"],
+                    "user": config["database"]["username"],
+                    "password": config["database"]["password"],
+                    "autocommit": True,
+                },
+                configure=self.configure_db_connection,
+                check=AsyncConnectionPool.check_connection,
+                min_size=1,
+                max_size=5,
+                open=False,
             )
-            self.db_connection.autocommit = True  # Scary
+            self.db = database.Database(self.db_pool)
 
         if self.check_credentials(config["sanity"], SANITY_RELIANT_COGS):
             self.sanity = config["sanity"]
@@ -64,39 +87,122 @@ class Bot(commands.Bot):
             self.mc_rcon_password = config["minecraft"]["rcon_password"]
 
         # Fetch misc config values
-        self.UIO_GAMING_GUILD_ID = UIO_GAMING_GUILD_ID
+        ids = config.get("ids") or {}
+        self.UIO_GAMING_GUILD_ID = ids.get("guild")
+        self.channel_ids = ids.get("channels") or {}
+        self.role_ids = ids.get("roles") or {}
+        self.user_ids = ids.get("users") or {}
         self.guild_id = config.get("dev_guild", self.UIO_GAMING_GUILD_ID)
         self.config_mode = config.get("config_mode")
         self.presence = config["bot"].get("presence", {})
         self.emoji = config.get("emoji", {})
         self.misc = config.get("misc", {})
+        self.timezone = ZoneInfo(tz) if (tz := config.get("timezone")) else None  # None means the system timezone
+        self.timezone_name = tz or self.system_timezone_name()
+
+        try:
+            midnight_tz = self.timezone or ZoneInfo(self.timezone_name)
+        except (TypeError, ValueError, ZoneInfoNotFoundError):
+            midnight_tz = datetime.UTC
+        misc_utils.MIDNIGHT = datetime.time(tzinfo=midnight_tz)
+
+        # Read once, so it shows the code that's running even if the repository is updated without a restart
+        self.version = misc_utils.git_version()
 
     async def setup_hook(self):
+        """
+        Open the HTTP session and database pool, load the cogs and sync the slash commands
+        """
+
+        self.http_session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=15))
+        if self.db_pool:
+            await self.db_pool.open(wait=True, timeout=30)
+
+        # Docker stops the container with SIGTERM. Close gracefully so cogs can save their caches
+        try:
+            asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, lambda: asyncio.create_task(self.close()))
+        except NotImplementedError:
+            pass  # Not supported on Windows
+
         # Load cogs
         for file in self.cog_files:
             if file.endswith(".py"):
                 name = file[:-3]
                 await bot.load_extension(f"cogs.{name}")
 
-        # Sync slash commands
+        # Sync slash commands. A sync only replaces the commands in its own scope, so commands left
+        # in the other scope (global or guild) from running in the other mode show up as duplicates
+        guild = discord.Object(id=self.guild_id)
         if self.config_mode == "prod":
             await self.tree.sync(guild=None)
+            try:
+                self.tree.clear_commands(guild=guild)
+                await self.tree.sync(guild=guild)
+            except discord.HTTPException as e:
+                self.logger.warning(f"Could not remove leftover guild commands in {self.guild_id}: {e}")
         else:
-            self.tree.copy_global_to(guild=discord.Object(id=self.guild_id))
-            await self.tree.sync(guild=discord.Object(id=self.guild_id))
+            self.tree.copy_global_to(guild=guild)
+            await self.tree.sync(guild=guild)
+            if global_commands := await self.tree.fetch_commands():
+                self.logger.warning(
+                    f"This bot application also has {len(global_commands)} global slash commands, which show up "
+                    + "twice in the dev guild. Use a separate bot application for development, see the README"
+                )
+
+    async def close(self):
+        """
+        Close the HTTP session and database pool when the bot shuts down
+        """
+
+        await super().close()
+        if hasattr(self, "http_session"):
+            await self.http_session.close()
+        if self.db_pool:
+            await self.db_pool.close()
+
+    async def configure_db_connection(self, conn):
+        """
+        Sets the session time zone of every new database connection to the bot's time zone
+
+        Parameters
+        ----------
+        conn (psycopg.AsyncConnection): The new database connection
+        """
+
+        if self.timezone_name:
+            await conn.execute("SELECT set_config('timezone', %s, false)", (self.timezone_name,))
+
+    @staticmethod
+    def system_timezone_name() -> str | None:
+        """
+        Get the IANA name of the system time zone
+
+        Returns
+        ----------
+        (str | None): The time zone name. None if it can't be determined
+        """
+
+        if tz := environ.get("TZ"):
+            return tz.removeprefix(":")
+
+        localtime = realpath("/etc/localtime")
+        if "/zoneinfo/" in localtime:
+            return localtime.split("/zoneinfo/", 1)[1]
+
+        return None
 
     def check_credentials(self, credentials: dict, dependant_cogs: set[str]) -> bool:
         """
         Check if the credentials are valid. Removes cogs from the class' `cog_files` attribute if not
 
         Parameters
-        -----------
+        ----------
         credentials (dict): The credentials to check
         dependant_cogs (set): The cogs that depend on the credentials
 
         Returns
         ----------
-        bool: Whether the credentials are valid. If not, the dependant cogs are disabled.
+        (bool): Whether the credentials are valid. If not, the dependant cogs are disabled.
         """
 
         for credential in credentials.values():
@@ -113,6 +219,10 @@ bot = Bot()
 
 @bot.event
 async def on_ready():
+    """
+    Print the bot's info and set its presence once it's connected
+    """
+
     if not hasattr(bot, "uptime"):
         bot.uptime = time()
 

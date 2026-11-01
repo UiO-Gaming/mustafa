@@ -2,7 +2,6 @@ import asyncio
 from os import listdir
 
 import discord
-import requests
 from discord.ext import commands
 
 from cogs.utils import embed_templates
@@ -30,11 +29,20 @@ class DevTools(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         """
 
-        await asyncio.create_subprocess_shell("git pull")
-        await ctx.reply("Done!")
+        process = await asyncio.create_subprocess_exec(
+            "git", "pull", stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
+        )
+        stdout, _ = await process.communicate()
+        output = stdout.decode(errors="replace").strip() or "Ingen output"
+
+        if process.returncode == 0:
+            embed = embed_templates.success(f"```\n{output[:4000]}\n```")
+        else:
+            embed = embed_templates.error_fatal(f"git pull feilet ({process.returncode})\n```\n{output[:3950]}\n```")
+        await ctx.reply(embed=embed)
 
     @commands.is_owner()
     @commands.bot_has_permissions(embed_links=True)
@@ -42,13 +50,13 @@ class DevTools(commands.Cog):
         name="custommsg",
         description="Send en melding til hvilken som helst kanal på hvilken som helst server botten er i",
     )
-    async def custommsg(self, ctx: commands.Context, channel: int, text: str):
+    async def custommsg(self, ctx: commands.Context, channel: int, *, text: str):
         """
         Send a message to any channel on any server the bot is in
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         channel (int): The channel ID to send the message to
         text (str): The text to send
         """
@@ -72,7 +80,7 @@ class DevTools(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         activity_type (str): The type of activity to set the bot's status to
         message (str): The message to set the bot's status to
         status_type (str): The type of status to set the bot's status to
@@ -97,23 +105,23 @@ class DevTools(commands.Cog):
     @commands.is_owner()
     @commands.bot_has_permissions(embed_links=True, add_reactions=True)
     @commands.command(name="leave", description="Forlater en server. Om ingen er gitt, forlat der det ble sendt fra")
-    async def leave(self, ctx: commands.Context, *guild_id: int):
+    async def leave(self, ctx: commands.Context, guild_id: int | None = None):
         """
         Make bot leave a specified guild. If no guild is specified, leave the guild the command was sent from
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         guild_id (int): The ID of the guild to leave
         """
 
         # If no guild id is specified, leave the current guild
-        guild_id = guild_id if guild_id else ctx.guild.id
+        guild_id = guild_id or ctx.guild.id
 
         # Get guild
         try:
             guild = await self.bot.fetch_guild(guild_id)
-        except discord.errors.Forbidden:
+        except (discord.errors.Forbidden, discord.errors.NotFound):
             embed = embed_templates.error_warning("Bot is not a member of this guild")
             return await ctx.reply(embed=embed)
 
@@ -147,10 +155,11 @@ class DevTools(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         """
 
-        data = requests.get("https://wtfismyip.com/json", timeout=10).json()
+        async with self.bot.http_session.get("https://wtfismyip.com/json") as response:
+            data = await response.json(content_type=None)
         ip = data["YourFuckingIPAddress"]
         location = data["YourFuckingLocation"]
         isp = data["YourFuckingISP"]
@@ -168,11 +177,11 @@ class DevTools(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         """
 
         if not ctx.invoked_subcommand:
-            await ctx.reply_help(ctx.command)
+            await ctx.send_help(ctx.command)
 
     @cogs.command(name="unload", description="Avslutt en cog")
     async def cogs_unload(self, ctx: commands.Context, cog: str):
@@ -181,7 +190,7 @@ class DevTools(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         cog (str): The name of the cog to disable
         """
 
@@ -205,7 +214,7 @@ class DevTools(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         cog (str): The name of the cog to enable
         """
 
@@ -229,7 +238,7 @@ class DevTools(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         cog (str): The name of the cog to reload
         """
 
@@ -253,22 +262,13 @@ class DevTools(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         """
 
-        # Unload all cogs
-        for file in listdir("./src/cogs"):
-            if file.endswith(".py"):
-                name = file[:-3]
-                await self.bot.unload_extension(f"cogs.{name}")
+        extensions = [f"cogs.{file[:-3]}" for file in listdir("./src/cogs") if file.endswith(".py")]
+        failed = await self.reload_extensions(extensions)
 
-        # Load all cogs
-        for file in listdir("./src/cogs"):
-            if file.endswith(".py"):
-                name = file[:-3]
-                await self.bot.load_extension(f"cogs.{name}")
-
-        embed = discord.Embed(color=ctx.me.color, description="Reloaded all cogs")
+        embed = discord.Embed(color=ctx.me.color, description=self.reload_summary("Reloaded all cogs", failed))
         await ctx.reply(embed=embed)
 
     @cogs.command(name="reloadall", description="Last inn alle cogs på nytt")
@@ -278,16 +278,59 @@ class DevTools(commands.Cog):
 
         Parameters
         ----------
-        ctx (commands.Context): Context object
+        ctx (commands.Context): The command context
         """
 
-        for file in listdir("./src/cogs"):
-            if file.endswith(".py"):
-                name = file[:-3]
-                await self.bot.reload_extension(f"cogs.{name}")
+        failed = await self.reload_extensions(list(self.bot.extensions))
 
-        embed = discord.Embed(color=ctx.me.color, description="Reloaded all previously enabled cogs")
+        embed = discord.Embed(
+            color=ctx.me.color, description=self.reload_summary("Reloaded all previously enabled cogs", failed)
+        )
         await ctx.reply(embed=embed)
+
+    async def reload_extensions(self, extensions: list[str]) -> dict[str, Exception]:
+        """
+        Reloads the given extensions, loading the ones that aren't loaded yet
+
+        Parameters
+        ----------
+        extensions (list[str]): Names of the extensions to reload
+
+        Returns
+        ----------
+        (dict[str, Exception]): The extensions that failed and why
+        """
+
+        failed = {}
+        for extension in extensions:
+            try:
+                if extension in self.bot.extensions:
+                    await self.bot.reload_extension(extension)
+                else:
+                    await self.bot.load_extension(extension)
+            except commands.ExtensionError as e:
+                self.bot.logger.error(f"Failed to reload {extension}: {e}")
+                failed[extension] = e
+        return failed
+
+    def reload_summary(self, message: str, failed: dict[str, Exception]) -> str:
+        """
+        Builds the reply for the reload commands
+
+        Parameters
+        ----------
+        message (str): The message to show when everything was reloaded
+        failed (dict[str, Exception]): The extensions that failed and why
+
+        Returns
+        ----------
+        (str): The reply text
+        """
+
+        if not failed:
+            return message
+        failures = "\n".join(f"* `{extension}`: {type(e.__cause__ or e).__name__}" for extension, e in failed.items())
+        return f"{message}, except:\n{failures}"
 
 
 async def setup(bot: commands.Bot):
@@ -296,7 +339,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(DevTools(bot))

@@ -1,7 +1,7 @@
 import re
 
 import discord
-import psycopg2
+import psycopg
 from discord.ext import commands
 from discord.ext import tasks
 
@@ -23,57 +23,70 @@ class StarboardScraper(commands.Cog):
         """
 
         self.bot = bot
-        self.starboard_channel_id = 757614289812193280
+        self.starboard_channel_id = self.bot.channel_ids.get("starboard")
 
-        self.cursor = self.bot.db_connection.cursor()
-        self.init_db()
+    async def cog_load(self):
+        """
+        Set up the database before the cog is used
+        """
+
+        await self.init_db()
         self.star_check.start()
 
-    def init_db(self):
+    async def init_db(self):
         """
         Create the necessary tables for the cog to work
         """
 
-        self.cursor.execute(
-            """
+        await self.bot.db.execute("""
             CREATE TABLE IF NOT EXISTS starboard_messages (
                 id SERIAL PRIMARY KEY,
                 starboard_message_id BIGINT UNIQUE,
                 original_message_id BIGINT,
                 original_channel_id BIGINT
             )
-            """
-        )
-        self.cursor.execute(
-            """
+            """)
+        await self.bot.db.execute("""
             CREATE TABLE IF NOT EXISTS starboard_scraper_state (
                 id INTEGER PRIMARY KEY DEFAULT 1,
                 last_scraped_message_id BIGINT,
-                last_scrape_time TIMESTAMP,
+                last_scrape_time TIMESTAMPTZ,
                 CHECK (id = 1)
             )
-            """
-        )
+            """)
+        await self.bot.db.execute("""
+            DO $$
+            BEGIN
+                IF (
+                    SELECT data_type
+                    FROM information_schema.columns
+                    WHERE table_schema = current_schema()
+                        AND table_name = 'starboard_scraper_state'
+                        AND column_name = 'last_scrape_time'
+                ) = 'timestamp without time zone' THEN
+                    ALTER TABLE starboard_scraper_state
+                        ALTER COLUMN last_scrape_time TYPE TIMESTAMPTZ
+                            USING last_scrape_time AT TIME ZONE 'Europe/Oslo';
+                END IF;
+            END $$;
+            """)
 
-    def get_last_scraped_message_id(self):
+    async def get_last_scraped_message_id(self):
         """
         Get the ID of the last scraped message
 
         Returns
-        -------
-        int or None: Last scraped message ID or None if never scraped
+        ----------
+        (int | None): Last scraped message ID or None if never scraped
         """
-        self.cursor.execute(
-            """
+        result = await self.bot.db.fetchone("""
             SELECT last_scraped_message_id
             FROM starboard_scraper_state
             WHERE id = 1
-            """
-        )
-        result = self.cursor.fetchone()
+            """)
         return result[0] if result else None
 
-    def update_last_scraped_message_id(self, message_id: int):
+    async def update_last_scraped_message_id(self, message_id: int):
         """
         Update the last scraped message ID
 
@@ -81,7 +94,7 @@ class StarboardScraper(commands.Cog):
         ----------
         message_id (int): The message ID to store
         """
-        self.cursor.execute(
+        await self.bot.db.execute(
             """
             INSERT INTO starboard_scraper_state (id, last_scraped_message_id, last_scrape_time)
             VALUES (1, %s, CURRENT_TIMESTAMP)
@@ -91,7 +104,6 @@ class StarboardScraper(commands.Cog):
             """,
             (message_id,),
         )
-        self.bot.db_connection.commit()
 
     def parse_starboard_message(self, message: discord.Message):
         """
@@ -102,8 +114,8 @@ class StarboardScraper(commands.Cog):
         message (discord.Message): The starboard message to parse
 
         Returns
-        -------
-        tuple(int, int) | None: (original_message_id, original_channel_id) or None if parsing failed
+        ----------
+        (tuple[int, int] | None): The original message ID and channel ID. None if parsing failed
         """
 
         if not message.embeds:
@@ -136,7 +148,7 @@ class StarboardScraper(commands.Cog):
             self.bot.logger.error(f"Could not find starboard channel {self.starboard_channel_id}")
             return
 
-        last_scraped_id = self.get_last_scraped_message_id()
+        last_scraped_id = await self.get_last_scraped_message_id()
 
         if last_scraped_id:
             self.bot.logger.info(f"Resuming scrape from msg ID {last_scraped_id}")
@@ -165,7 +177,7 @@ class StarboardScraper(commands.Cog):
                 original_message_id, original_channel_id = parsed_ids
 
                 try:
-                    self.cursor.execute(
+                    inserted = await self.bot.db.execute(
                         """
                         INSERT INTO starboard_messages
                         (starboard_message_id, original_message_id, original_channel_id)
@@ -175,16 +187,16 @@ class StarboardScraper(commands.Cog):
                         (message.id, original_message_id, original_channel_id),
                     )
 
-                    if self.cursor.rowcount > 0:
+                    if inserted > 0:
                         new_count += 1
 
-                except psycopg2.Error as e:
+                except psycopg.Error as e:
                     self.bot.logger.error(f"Database error for message {message.id}: {e}")
                     error_count += 1
                     continue
 
             if latest_message_id:
-                self.update_last_scraped_message_id(latest_message_id)
+                await self.update_last_scraped_message_id(latest_message_id)
 
             self.bot.logger.info(f"Starboard scrape complete: {new_count} new messages, {error_count} errors")
 
@@ -194,6 +206,7 @@ class StarboardScraper(commands.Cog):
             self.bot.logger.error(f"Error during starboard scrape: {e}")
 
     @tasks.loop(time=misc_utils.MIDNIGHT)
+    @misc_utils.log_errors
     async def star_check(self):
         """
         Update DB with latest starboard data
@@ -204,9 +217,12 @@ class StarboardScraper(commands.Cog):
         await self.scrape_starboard_channel()
 
     async def cog_unload(self):
+        """
+        Stop the starboard check when the cog is unloaded
+        """
+
         self.bot.logger.info("Unloading cog")
-        self.star_check().cancel()
-        self.cursor.close()
+        self.star_check.cancel()
 
 
 async def setup(bot: commands.Bot):
@@ -215,7 +231,7 @@ async def setup(bot: commands.Bot):
 
     Parameters
     ----------
-    bot (commands.Bot): Bot instance
+    bot (commands.Bot): The bot instance
     """
 
     await bot.add_cog(StarboardScraper(bot))
