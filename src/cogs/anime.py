@@ -8,6 +8,9 @@ from discord.ext import commands
 from cogs.utils import embed_templates
 from cogs.utils import misc_utils
 
+# Anilist roles of the people who made a manga, as opposed to assistants, editors and translators
+MANGA_CREATOR_ROLES = ("Story & Art", "Story", "Art", "Original Story", "Original Creator")
+
 
 class Anime(commands.Cog):
     """View information about different media on Anilist"""
@@ -147,6 +150,36 @@ class Anime(commands.Cog):
             "CANCELLED": "Kansellert",
         }
         return statuses.get(status, status)
+
+    def construct_staff_string(self, staff: list[dict], roles: tuple[str, ...]) -> str:
+        """
+        Lists the staff members with one of the given roles, one per line.
+        Details in parentheses are ignored, so "Director (eps 1-278)" counts as "Director".
+        Stops before going over the 1024 characters an embed field can hold
+
+        Parameters
+        ----------
+        staff (list[dict]): The staff edges returned from the Anilist API
+        roles (tuple[str, ...]): The roles to include
+
+        Returns
+        ----------
+        (str): The constructed string. Empty if nobody has one of the roles
+        """
+
+        lines = []
+        for staff_member in staff:
+            if staff_member["role"].split(" (")[0] not in roles:
+                continue
+
+            name = staff_member["node"]["name"]
+            full_name = f"{name['full']} ({name['native']})" if name["native"] else name["full"]
+            line = f"[{full_name}]({staff_member['node']['siteUrl']})"
+            if len("\n".join([*lines, line])) > 1024:
+                break
+            lines.append(line)
+
+        return "\n".join(lines)
 
     def get_status_stat(self, statuses: list[dict], status: str, stat: str = "count") -> int:
         """
@@ -719,14 +752,13 @@ class Anime(commands.Cog):
                         siteUrl
                     }
                 }
-                staff (sort: ROLE) {
+                staff (sort: RELEVANCE) {
                     edges {
                         role
                         node {
                             siteUrl
                             name {
-                                first
-                                last
+                                full
                                 native
                             }
                         }
@@ -764,17 +796,7 @@ class Anime(commands.Cog):
         genres = ", ".join(data["genres"])
         studios_string = self.construct_favorite_entity_string(data["studios"]["nodes"], studio=True)
 
-        staff = data["staff"]["edges"]
-        director_string = ""
-        for staff_member in staff:
-            if staff_member["role"] == "Director":
-                director_first_name = staff_member["node"]["name"]["first"]
-                director_last_name = staff_member["node"]["name"]["last"]
-                director_native_name = staff_member["node"]["name"]["native"]
-                director_url = staff_member["node"]["siteUrl"]
-                director_string += (
-                    f"[{director_first_name} {director_last_name} " + f"({director_native_name})]({director_url})"
-                )
+        director_string = self.construct_staff_string(data["staff"]["edges"], ("Director",))
 
         episodes = data["episodes"]
         duration = data["duration"]
@@ -874,14 +896,13 @@ class Anime(commands.Cog):
                         english
                         native
                     }
-                    staff(sort: ROLE) {
+                    staff(sort: RELEVANCE) {
                         edges {
                             role
                             node {
                                 siteUrl
                                 name {
-                                    first
-                                    last
+                                    full
                                     native
                                 }
                             }
@@ -918,14 +939,7 @@ class Anime(commands.Cog):
         description = self.remove_html(data["description"]) if data.get("description") else ""
         genres = ", ".join(data["genres"])
 
-        staff = data["staff"]["edges"]
-        staff_string = ""
-        for staff_member in staff:
-            staff_first_name = staff_member["node"]["name"]["first"]
-            staff_last_name = staff_member["node"]["name"]["last"]
-            staff_native_name = staff_member["node"]["name"]["native"]
-            staff_url = staff_member["node"]["siteUrl"]
-            staff_string += f"[{staff_first_name} {staff_last_name} ({staff_native_name})]({staff_url})\n"
+        staff_string = self.construct_staff_string(data["staff"]["edges"], MANGA_CREATOR_ROLES)
 
         chapters = data["chapters"]
         volumes = data["volumes"]
