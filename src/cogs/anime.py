@@ -168,6 +168,22 @@ class Anime(commands.Cog):
                 return entry[stat]
         return 0
 
+    def format_count(self, count: int | None) -> str:
+        """
+        Formats a count from the Anilist API, which is None when Anilist doesn't know it,
+        like the episodes of an anime that is still airing
+
+        Parameters
+        ----------
+        count (int | None): The count
+
+        Returns
+        ----------
+        (str): The formatted count. ? if it is unknown
+        """
+
+        return "?" if count is None else misc_utils.format_number(count)
+
     def is_nsfw_channel(self, interaction: discord.Interaction) -> bool:
         """
         Checks whether the interaction's channel is age-restricted. DMs are never treated as NSFW
@@ -441,10 +457,10 @@ class Anime(commands.Cog):
         embed = discord.Embed(title=user_name, color=color, url=url)
         embed.set_author(name="Anilist", icon_url=self.anilist_logo)
         embed.set_thumbnail(url=profile_pic)
-        embed.add_field(name="Antall dager sett", value=days_watched)
-        embed.add_field(name="Antall anime sett", value=anime_completed)
-        embed.add_field(name="Antall kapitler lest", value=chapters_read)
-        embed.add_field(name="Antall manga lest", value=manga_completed)
+        embed.add_field(name="Antall dager sett", value=misc_utils.format_number(days_watched))
+        embed.add_field(name="Antall anime sett", value=misc_utils.format_number(anime_completed))
+        embed.add_field(name="Antall kapitler lest", value=misc_utils.format_number(chapters_read))
+        embed.add_field(name="Antall manga lest", value=misc_utils.format_number(manga_completed))
         if favourite_anime:
             embed.add_field(name="Noen favorittanime", value=favourite_anime, inline=False)
         if favourite_manga:
@@ -528,8 +544,7 @@ class Anime(commands.Cog):
         dropped = self.get_status_stat(statuses, "DROPPED")
 
         anime_mean_score = data["statistics"]["anime"]["meanScore"]
-        if not anime_mean_score:
-            anime_mean_score = "**Ingen**"
+        anime_mean_score = misc_utils.format_number(anime_mean_score) if anime_mean_score else "**Ingen**"
 
         most_watched_genres = ", ".join([genre["genre"] for genre in data["statistics"]["anime"]["genres"]])
         most_watched_studios = self.construct_favorite_entity_string(data["statistics"]["anime"]["studios"])
@@ -538,12 +553,15 @@ class Anime(commands.Cog):
         embed.set_author(name="Anilist", icon_url=self.anilist_logo)
         embed.set_thumbnail(url=profile_pic)
         embed.add_field(name="Gj.snittsvurdering gitt", value=anime_mean_score)
-        embed.add_field(name="Antall dager sett", value=days_watched)
-        embed.add_field(name="Antall episoder sett", value=episodes_watched)
-        embed.add_field(name="Antall anime sett", value=completed)
-        embed.add_field(name="Ser på nå", value=watching)
-        embed.add_field(name="Planlegger å se", value=f"{planning}\n({planning_days} dager)")
-        embed.add_field(name="Droppet", value=dropped)
+        embed.add_field(name="Antall dager sett", value=misc_utils.format_number(days_watched))
+        embed.add_field(name="Antall episoder sett", value=misc_utils.format_number(episodes_watched))
+        embed.add_field(name="Antall anime sett", value=misc_utils.format_number(completed))
+        embed.add_field(name="Ser på nå", value=misc_utils.format_number(watching))
+        embed.add_field(
+            name="Planlegger å se",
+            value=f"{misc_utils.format_number(planning)}\n({misc_utils.format_number(planning_days)} dager)",
+        )
+        embed.add_field(name="Droppet", value=misc_utils.format_number(dropped))
         if most_watched_genres:
             embed.add_field(name="Mest sette sjangere", value=most_watched_genres, inline=False)
         if most_watched_studios:
@@ -623,8 +641,7 @@ class Anime(commands.Cog):
         dropped = self.get_status_stat(statuses, "DROPPED")
 
         manga_mean_score = data["statistics"]["manga"]["meanScore"]
-        if manga_mean_score == 0:
-            manga_mean_score = "**Ingen**"
+        manga_mean_score = misc_utils.format_number(manga_mean_score) if manga_mean_score else "**Ingen**"
 
         most_read_genres = ", ".join([genre["genre"] for genre in data["statistics"]["manga"]["genres"]])
         most_read_staff = self.construct_favorite_entity_string(data["statistics"]["manga"]["staff"])
@@ -633,12 +650,15 @@ class Anime(commands.Cog):
         embed.set_author(name="Anilist", icon_url=self.anilist_logo)
         embed.set_thumbnail(url=profile_pic)
         embed.add_field(name="Gj.snittsvurdering gitt", value=manga_mean_score)
-        embed.add_field(name="Antall kapitler lest", value=chapters_read)
-        embed.add_field(name="Antall volum lest", value=volumes_read)
-        embed.add_field(name="Antall manga lest", value=completed)
-        embed.add_field(name="Leser nå", value=reading)
-        embed.add_field(name="Planlegger å lese", value=f"{planning}\n({planning_chapters} kapitler)")
-        embed.add_field(name="Droppet", value=dropped)
+        embed.add_field(name="Antall kapitler lest", value=misc_utils.format_number(chapters_read))
+        embed.add_field(name="Antall volum lest", value=misc_utils.format_number(volumes_read))
+        embed.add_field(name="Antall manga lest", value=misc_utils.format_number(completed))
+        embed.add_field(name="Leser nå", value=misc_utils.format_number(reading))
+        embed.add_field(
+            name="Planlegger å lese",
+            value=f"{misc_utils.format_number(planning)}\n({misc_utils.format_number(planning_chapters)} kapitler)",
+        )
+        embed.add_field(name="Droppet", value=misc_utils.format_number(dropped))
         if most_read_genres:
             embed.add_field(name="Mest leste sjangere", value=most_read_genres, inline=False)
         if most_read_staff:
@@ -789,11 +809,15 @@ class Anime(commands.Cog):
             embed.add_field(name="Regissør", value=director_string)
         embed.add_field(name="Utgivelsesdato", value=date)
         if media_format == "Film":
-            embed.add_field(name="Lengde", value=f"{duration} minutter")
+            embed.add_field(name="Lengde", value=f"{self.format_count(duration)} minutter")
+        elif duration is None:
+            embed.add_field(name="Episoder", value=self.format_count(episodes))
         else:
-            embed.add_field(name="Episoder", value=f"{episodes} ({duration} {length_string})")
+            embed.add_field(
+                name="Episoder", value=f"{self.format_count(episodes)} ({self.format_count(duration)} {length_string})"
+            )
         if mean_score:
-            embed.add_field(name="Gj.snittsvurdering", value=f"{mean_score}/100")
+            embed.add_field(name="Gj.snittsvurdering", value=f"{misc_utils.format_number(mean_score)}/100")
         embed.add_field(name="Sjangere", value=genres)
         if len(description) < 1024 and description:
             embed.add_field(name="Sammendrag", value=description, inline=False)
@@ -924,9 +948,11 @@ class Anime(commands.Cog):
         if staff_string:
             embed.add_field(name="Laget av", value=staff_string)
         embed.add_field(name="Utgivelsesdato", value=date)
-        embed.add_field(name="Lengde", value=f"{chapters} {chapters_string}\n{volumes} volum")
+        embed.add_field(
+            name="Lengde", value=f"{self.format_count(chapters)} {chapters_string}\n{self.format_count(volumes)} volum"
+        )
         if mean_score:
-            embed.add_field(name="Gj.snittsvurdering", value=f"{mean_score}/100")
+            embed.add_field(name="Gj.snittsvurdering", value=f"{misc_utils.format_number(mean_score)}/100")
         embed.add_field(name="Sjangere", value=genres)
         if len(description) < 1024 and description:
             embed.add_field(name="Sammendrag", value=description, inline=False)

@@ -31,7 +31,9 @@ def format_status_counts(status_counts: Counter[discord.Status], emoji: dict[str
     (str): The formatted status counts
     """
 
-    return separator.join(f"{emoji[status.value]}{status_counts[status]}" for status in SHOWN_STATUSES)
+    return separator.join(
+        f"{emoji[status.value]}{misc_utils.format_number(status_counts[status])}" for status in SHOWN_STATUSES
+    )
 
 
 async def send_as_txt_file(interaction: discord.Interaction, content: str, filename: str):

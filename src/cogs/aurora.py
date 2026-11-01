@@ -118,7 +118,7 @@ class Aurora(commands.Cog):
             description=f"### Størst sjanse mellom {start} og {end}",
             color=discord.Color.purple(),
         )
-        embed.add_field(name="Sjanse for Nordlys", value=f"{round(forecast['auroraValue'] * 100)}%", inline=False)
+        embed.add_field(name="Sjanse for Nordlys", value=f"{round(forecast['auroraValue'] * 100)}\u00a0%", inline=False)
         embed.add_field(name="KP-Indeks", value=forecast["kpIndex"])
         embed.add_field(name="Skydekke", value=f"{forecast['cloudCover']['value']}%")
         await channel.send(

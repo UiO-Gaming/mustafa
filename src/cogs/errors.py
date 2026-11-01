@@ -5,6 +5,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from cogs.utils import embed_templates
+from cogs.utils import misc_utils
 
 
 class Errors(commands.Cog):
@@ -97,7 +98,7 @@ class Errors(commands.Cog):
             embed = embed_templates.error_warning("Bare boteieren kan gjøre dette")
         elif isinstance(error, commands.CommandOnCooldown):
             embed = embed_templates.error_warning(
-                f"Kommandoen har nettopp blitt brukt\nPrøv igjen om `{error.retry_after:.1f}` sekunder.",
+                f"Kommandoen har nettopp blitt brukt\nPrøv igjen om `{misc_utils.format_number(error.retry_after, 1)}` sekunder.",
             )
         elif isinstance(error, commands.NoPrivateMessage):
             embed = embed_templates.error_warning("Denne kommandoen kan bare utføres it servere")
@@ -143,7 +144,7 @@ class Errors(commands.Cog):
             embed = self.error_missing_perms(error.missing_permissions, "Du")
         elif isinstance(error, app_commands.CommandOnCooldown):
             embed = embed_templates.error_warning(
-                f"Kommandoen har nettopp blitt brukt\nPrøv igjen om `{error.retry_after:.1f}` sekunder."
+                f"Kommandoen har nettopp blitt brukt\nPrøv igjen om `{misc_utils.format_number(error.retry_after, 1)}` sekunder."
             )
         else:
             embed = embed_templates.error_fatal("En ukjent feil oppstod!")

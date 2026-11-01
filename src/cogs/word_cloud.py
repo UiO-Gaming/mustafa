@@ -576,7 +576,7 @@ class WordCloud(commands.Cog):
 
         word_cloud_file = discord.File(word_cloud, filename=f"wordcloud_{interaction.user.id}.png")
         embed = discord.Embed(title="☁️ Her er ordskyen din! ☁️")
-        embed.description = f"Basert på de {len(all_messages.split())} mest brukte ordene dine blant de {amount} siste meldingene i {len(channels)} kanaler"
+        embed.description = f"Basert på de {misc_utils.format_number(len(all_messages.split()))} mest brukte ordene dine blant de {misc_utils.format_number(amount)} siste meldingene i {misc_utils.format_number(len(channels))} kanaler"
         embed.set_image(url=f"attachment://wordcloud_{interaction.user.id}.png")
         await interaction.followup.send(embed=embed, file=word_cloud_file)
 

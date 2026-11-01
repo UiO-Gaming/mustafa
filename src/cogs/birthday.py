@@ -366,7 +366,9 @@ class Birthday(commands.Cog):
         embed.add_field(
             name="Bursdag", value=discord.utils.format_dt(misc_utils.localize(birthday, self.bot.timezone), style="D")
         )
-        embed.add_field(name="Hvor gammel?", value=f"{years_old} år\n({days_old} dager)", inline=False)
+        embed.add_field(
+            name="Hvor gammel?", value=f"{years_old} år\n({misc_utils.format_number(days_old)} dager)", inline=False
+        )
         embed.add_field(name="Weeb age", value=japanese_era, inline=False)
         embed.add_field(
             name="Neste bursdag om",

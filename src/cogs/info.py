@@ -105,7 +105,7 @@ class Info(commands.Cog):
         # Days since guild was created
         creation_date_timestamp = discord.utils.format_dt(interaction.guild.created_at, style="F")
         since_created_days = (interaction.created_at - interaction.guild.created_at).days
-        days_ago = f"{since_created_days} dager" if since_created_days != 1 else f"{since_created_days} dag"
+        days_ago = f"{misc_utils.format_number(since_created_days)} {'dag' if since_created_days == 1 else 'dager'}"
 
         # Member count and status counts
         total_members = interaction.guild.member_count
@@ -208,9 +208,9 @@ class Info(commands.Cog):
             + f"🗃️ Kategorier: **{categories}**",
         )
         embed.add_field(
-            name=f"Medlemmer ({total_members})",
-            value=f"👤 Mennesker: **{int(total_members) - int(bot_members)}**\n"
-            + f"🤖 Båtter: **{bot_members}**\n"
+            name=f"Medlemmer ({misc_utils.format_number(total_members)})",
+            value=f"👤 Mennesker: **{misc_utils.format_number(total_members - bot_members)}**\n"
+            + f"🤖 Båtter: **{misc_utils.format_number(bot_members)}**\n"
             + discord_utils.format_status_counts(status_counts, self.bot.emoji, " "),
         )
         embed.add_field(name=f"Roller ({len(interaction.guild.roles) - 1})", value=roles, inline=False)
@@ -371,7 +371,7 @@ class Info(commands.Cog):
         embed.add_field(name="Fargekode", value=str(role.color))
         embed.add_field(
             name="Opprettet",
-            value=f"{created_at_timestamp}\n{since_created_days} "
+            value=f"{created_at_timestamp}\n{misc_utils.format_number(since_created_days)} "
             + f'{"dager" if since_created_days != 1 else "dag"} siden',
         )
         embed.add_field(name="Posisjon", value=role.position)
@@ -379,7 +379,9 @@ class Info(commands.Cog):
         embed.add_field(name="Vises separat i medlemsliste", value="Ja" if role.hoist else "Nei")
         if permissions:
             embed.add_field(name="Tillatelser", value=permissions, inline=False)
-        embed.add_field(name=f"Brukere med rollen ({len(role.members)})", value=members, inline=False)
+        embed.add_field(
+            name=f"Brukere med rollen ({misc_utils.format_number(len(role.members))})", value=members, inline=False
+        )
         await interaction.response.send_message(embed=embed)
 
     @app_commands.checks.bot_has_permissions(embed_links=True)
@@ -413,7 +415,7 @@ class Info(commands.Cog):
         )
         if channel.category:
             embed.add_field(name="Kategori", value=channel.category.name)
-        embed.add_field(name=f"Antall med tilgang ({len(channel.members)})", value=members)
+        embed.add_field(name=f"Antall med tilgang ({misc_utils.format_number(len(channel.members))})", value=members)
         await interaction.response.send_message(embed=embed)
 
     @app_commands.checks.bot_has_permissions(embed_links=True)
@@ -458,7 +460,9 @@ class Info(commands.Cog):
         roles = sorted(
             [r for r in interaction.guild.roles if r.name != "@everyone"], key=lambda x: len(x.members), reverse=True
         )
-        roles_formatted = [f"**#{i + 1}** {r.mention} - {len(r.members)}" for i, r in enumerate(roles)]
+        roles_formatted = [
+            f"**#{i + 1}** {r.mention} - {misc_utils.format_number(len(r.members))}" for i, r in enumerate(roles)
+        ]
 
         paginator = misc_utils.Paginator(roles_formatted)
         view = discord_utils.Scroller(paginator, interaction.user)
@@ -690,16 +694,18 @@ class Info(commands.Cog):
         embed.set_thumbnail(url=user.display_avatar)
         embed.add_field(
             name="Opprettet",
-            value=f"{created_timestamp}\n{created_days} " + f'{"dag" if created_days == 1 else "dager"} siden',
+            value=f"{created_timestamp}\n{misc_utils.format_number(created_days)} "
+            + f'{"dag" if created_days == 1 else "dager"} siden',
         )
         embed.add_field(
             name="Ble med i serveren",
-            value=f"{joined_timestamp}\n{joined_days} " + f'{"dag" if joined_days == 1 else "dager"} siden',
+            value=f"{joined_timestamp}\n{misc_utils.format_number(joined_days)} "
+            + f'{"dag" if joined_days == 1 else "dager"} siden',
         )
         if user.premium_since:
             embed.add_field(
                 name="Boost",
-                value=f"{premium_since}\n{premium_since_days} "
+                value=f"{premium_since}\n{misc_utils.format_number(premium_since_days)} "
                 + f'{"dag" if premium_since_days == 1 else "dager"} siden\n'
                 + f"Booster #{premium_index} av serveren",
                 inline=False,

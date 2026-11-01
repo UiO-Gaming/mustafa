@@ -35,6 +35,29 @@ def localize(dt: datetime.datetime, tz: datetime.tzinfo | None) -> datetime.date
     return dt.replace(tzinfo=tz) if tz else dt.astimezone()
 
 
+# Swaps the separators of Python's number formatting for Norwegian ones. The non-breaking space keeps
+# Discord from splitting a number across two lines
+NORWEGIAN_SEPARATORS = str.maketrans({",": "\u00a0", ".": ","})
+
+
+def format_number(number: float, decimals: int | None = None) -> str:
+    """
+    Format a number the Norwegian way, with spaces between the thousands and a decimal comma
+
+    Parameters
+    ----------
+    number (float): The number to format
+    decimals (int | None): How many decimals to round to. None shows the number as is
+
+    Returns
+    ----------
+    (str): The formatted number, like 1 234 567,8
+    """
+
+    formatted = f"{number:,}" if decimals is None else f"{number:,.{decimals}f}"
+    return formatted.translate(NORWEGIAN_SEPARATORS)
+
+
 @dataclass
 class GitVersion:
     """The branch and commit the code is checked out at"""

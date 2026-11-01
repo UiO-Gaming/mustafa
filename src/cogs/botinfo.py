@@ -70,18 +70,18 @@ class BotInfo(commands.Cog):
         embed.set_thumbnail(url=self.bot.user.display_avatar)
         embed.add_field(name="Dev", value=team.name if team else f"{dev.mention}\n{dev.display_name}")
         embed.add_field(name="Oppetid", value=self.get_uptime())
-        embed.add_field(name="Ping", value=f"Websocket ping: {self.get_ping()} ms")
-        embed.add_field(name="Servere", value=len(self.bot.guilds))
+        embed.add_field(name="Ping", value=f"Websocket ping: {misc_utils.format_number(self.get_ping())} ms")
+        embed.add_field(name="Servere", value=misc_utils.format_number(len(self.bot.guilds)))
         embed.add_field(name="Discord.py", value=discord.__version__)
         embed.add_field(name="Python", value=platform.python_version())
-        embed.add_field(name="Ressursbruk", value=f"RAM: {memory_usage} MB")
+        embed.add_field(name="Ressursbruk", value=f"RAM: {misc_utils.format_number(memory_usage)} MB")
         embed.add_field(name="Kernel", value=f"{platform.system()} {platform.release()}")
         if exists("/.dockerenv"):
             embed.add_field(name="Docker", value="✅")
         if version := self.bot.version:
             embed.add_field(name="Versjon", value=f"`{version.branch}`\n{self.commit_link(version)}")
         embed.add_field(
-            name=f"Brukere ({len(statuses)})",
+            name=f"Brukere ({misc_utils.format_number(len(statuses))})",
             value=discord_utils.format_status_counts(status_counts, self.bot.emoji, "\n"),
         )
         embed.add_field(
@@ -119,7 +119,10 @@ class BotInfo(commands.Cog):
         """
 
         embed = discord.Embed(color=interaction.client.user.color)
-        embed.add_field(name="📶 Ping", value=f"* **Websocket ping:** {self.get_ping()} ms\n* **I hodet:** ∞")
+        embed.add_field(
+            name="📶 Ping",
+            value=f"* **Websocket ping:** {misc_utils.format_number(self.get_ping())} ms\n* **I hodet:** ∞",
+        )
         await interaction.response.send_message(embed=embed, content=None)
 
     @app_commands.checks.bot_has_permissions(embed_links=True)

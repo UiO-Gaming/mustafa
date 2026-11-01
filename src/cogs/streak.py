@@ -278,7 +278,7 @@ class Streak(commands.Cog):
 
         embed = discord.Embed(title="Streak", description=user.mention)
         embed.set_author(name=user.name, icon_url=user.avatar)
-        embed.add_field(name="Antall dager", value=streak_days)
+        embed.add_field(name="Antall dager", value=misc_utils.format_number(streak_days))
         embed.add_field(name="Startet streaken", value=f"{streak_msg_timestamp}\n{streak_msg_link}")
         await interaction.followup.send(embed=embed)
 
@@ -308,7 +308,9 @@ class Streak(commands.Cog):
         streaks_formatted = []
         for i, (user_id, streak_start_time) in enumerate(streaks, start=1):
             days = (discord.utils.utcnow() - streak_start_time).days
-            streaks_formatted.append(f"**#{i}** <@{user_id}> - {days} {'dag' if days == 1 else 'dager'}")
+            streaks_formatted.append(
+                f"**#{i}** <@{user_id}> - {misc_utils.format_number(days)} {'dag' if days == 1 else 'dager'}"
+            )
 
         paginator = misc_utils.Paginator(streaks_formatted)
         view = discord_utils.Scroller(paginator, interaction.user)
