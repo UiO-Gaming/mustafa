@@ -14,6 +14,7 @@ from discord.ext import commands
 from moviepy import ColorClip
 from moviepy import CompositeVideoClip
 from moviepy import ImageClip
+from moviepy import VideoClip
 from moviepy import VideoFileClip
 from moviepy import vfx
 from PIL import Image
@@ -455,6 +456,19 @@ class Meme(commands.Cog):
         gap = 21
         line = ColorClip(size=(line_width, line_thickness), color=(255, 255, 255)).with_position(("center", line_top))
 
+        # Reveal the line from the middle and outwards with soft edges, while the texts fade in
+        reveal_duration, soft_edge = 1.0, 60
+        distance_from_middle = np.abs(np.arange(line_width) - (line_width - 1) / 2)
+
+        def line_mask(t: float) -> np.ndarray:
+            # Ease out, so the reveal slows down as it reaches the ends
+            progress = 1 - (1 - min(t / reveal_duration, 1)) ** 3
+            half_width = progress * (line_width / 2 + soft_edge)
+            row = np.clip((half_width - distance_from_middle) / soft_edge, 0, 1)
+            return np.tile(row, (line_thickness, 1))
+
+        line = line.with_mask(VideoClip(line_mask, is_mask=True, duration=26.0))
+
         # Leave 5% of the video's width free on each side. Long texts are shrunk to fit
         max_width = int(clip.w * 0.9)
         top_part, top_baseline, _ = Meme.text_clip(top_text, 60, stroke_width=2, max_width=max_width)
@@ -466,12 +480,13 @@ class Meme(commands.Cog):
             ("center", line_top + line_thickness + gap - (bottom_baseline - bottom_cap_height))
         )
 
-        parts = [
-            part.with_start(11.0).with_duration(26.0).with_effects([vfx.CrossFadeIn(1)])
-            for part in (top_part, line, bottom_part)
-        ]
+        top_part, bottom_part = (
+            part.with_start(11.0).with_duration(26.0).with_effects([vfx.CrossFadeIn(reveal_duration)])
+            for part in (top_part, bottom_part)
+        )
+        line = line.with_start(11.0).with_duration(26.0)
 
-        video = CompositeVideoClip([clip, *parts]).with_duration(26.0)
+        video = CompositeVideoClip([clip, top_part, line, bottom_part]).with_duration(26.0)
 
         video.write_videofile(
             f"./src/assets/temp/{user_id}_crab.mp4",
