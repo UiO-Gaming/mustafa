@@ -11,6 +11,9 @@ from psutil import Process
 from cogs.utils import embed_templates
 from cogs.utils import misc_utils
 
+# Shown as the dev when neither a dev is set in the config nor the application belongs to a team
+FALLBACK_DEV_ID = 170506717140877312
+
 
 class BotInfo(commands.Cog):
     """View information about the bot"""
@@ -37,10 +40,14 @@ class BotInfo(commands.Cog):
         """
 
         # Dev user info
+        team = None
         if dev_id := self.bot.user_ids.get("dev"):
             dev = await self.bot.fetch_user(dev_id)
         else:
-            dev = (await self.bot.application_info()).owner
+            app_info = self.bot.application or await self.bot.application_info()
+            team = app_info.team
+            if not team:
+                dev = self.bot.get_user(FALLBACK_DEV_ID) or await self.bot.fetch_user(FALLBACK_DEV_ID)
 
         # Memory usage
         process = Process(getpid())
@@ -74,9 +81,12 @@ class BotInfo(commands.Cog):
 
         # Build embed
         embed = discord.Embed(color=interaction.client.user.color, url=self.bot.misc["website"])
-        embed.set_author(name=dev.name, icon_url=dev.display_avatar)
+        if team:
+            embed.set_author(name=team.name, icon_url=team.icon)
+        else:
+            embed.set_author(name=dev.name, icon_url=dev.display_avatar)
         embed.set_thumbnail(url=self.bot.user.display_avatar)
-        embed.add_field(name="Dev", value=f"{dev.mention}\n{dev.display_name}")
+        embed.add_field(name="Dev", value=team.name if team else f"{dev.mention}\n{dev.display_name}")
         embed.add_field(name="Oppetid", value=self.get_uptime())
         embed.add_field(name="Ping", value=f"Websocket ping: {self.get_ping()} ms")
         embed.add_field(name="Servere", value=len(self.bot.guilds))
