@@ -280,8 +280,9 @@ class SocialCredit(commands.Cog):
 
         db_user = CreditUser(*result)
 
+        credits = "credit" if db_user.credit_score == 1 else "credits"
         embed = discord.Embed(
-            description=(f"{user.mention} har `{misc_utils.format_number(db_user.credit_score)}` social credits")
+            description=f"{user.mention} har `{misc_utils.format_number(db_user.credit_score)}` social {credits}"
         )
         await interaction.response.send_message(embed=embed)
 

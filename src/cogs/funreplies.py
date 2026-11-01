@@ -278,7 +278,9 @@ class FunReplies(commands.Cog):
 
         cooldown = self.get_cooldown(FUN_REPLIES_BY_NAME[name])
         await interaction.response.send_message(
-            embed=embed_templates.success(f"`{name}` har nå {cooldown} sekunder nedkjøling")
+            embed=embed_templates.success(
+                f"`{name}` har nå {cooldown} {'sekund' if cooldown == 1 else 'sekunder'} nedkjøling"
+            )
         )
 
     @app_commands.checks.bot_has_permissions(embed_links=True)

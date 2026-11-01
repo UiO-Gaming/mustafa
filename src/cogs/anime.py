@@ -656,7 +656,7 @@ class Anime(commands.Cog):
         embed.add_field(name="Leser nå", value=misc_utils.format_number(reading))
         embed.add_field(
             name="Planlegger å lese",
-            value=f"{misc_utils.format_number(planning)}\n({misc_utils.format_number(planning_chapters)} kapitler)",
+            value=f"{misc_utils.format_number(planning)}\n({misc_utils.format_number(planning_chapters)} {'kapittel' if planning_chapters == 1 else 'kapitler'})",
         )
         embed.add_field(name="Droppet", value=misc_utils.format_number(dropped))
         if most_read_genres:
@@ -809,7 +809,9 @@ class Anime(commands.Cog):
             embed.add_field(name="Regissør", value=director_string)
         embed.add_field(name="Utgivelsesdato", value=date)
         if media_format == "Film":
-            embed.add_field(name="Lengde", value=f"{self.format_count(duration)} minutter")
+            embed.add_field(
+                name="Lengde", value=f"{self.format_count(duration)} {'minutt' if duration == 1 else 'minutter'}"
+            )
         elif duration is None:
             embed.add_field(name="Episoder", value=self.format_count(episodes))
         else:
