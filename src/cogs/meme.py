@@ -340,10 +340,12 @@ class Meme(commands.Cog):
                     embed=embed_templates.error_fatal("Klarte ikke å nightcore sangen!")
                 )
 
+            title = yt_dlp.utils.sanitize_filename(info.get("title") or "")[:100].strip()
+            filename = f"{title} (Nightcore).mp3" if title else "nightcore.mp3"
             try:
                 await interaction.followup.send(
                     content=discord.utils.escape_markdown(info.get("title", "")),
-                    file=discord.File(nightcored, filename="nightcore.mp3"),
+                    file=discord.File(nightcored, filename=filename),
                 )
             except discord.HTTPException as e:
                 self.bot.logger.warning(f"Failed to send nightcored {target}: {e}")
