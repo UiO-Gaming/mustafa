@@ -11,6 +11,7 @@ import numpy as np
 import yt_dlp
 from discord import app_commands
 from discord.ext import commands
+from moviepy import ColorClip
 from moviepy import CompositeVideoClip
 from moviepy import ImageClip
 from moviepy import VideoFileClip
@@ -385,7 +386,9 @@ class Meme(commands.Cog):
             self.bot.logger.warning(f"Failed to remove temporary file {temp_file}")
 
     @staticmethod
-    def text_clip(text: str, font_size: int, stroke_width: int = 0, max_width: int | None = None) -> ImageClip:
+    def text_clip(
+        text: str, font_size: int, stroke_width: int = 0, max_width: int | None = None
+    ) -> tuple[ImageClip, int, int]:
         """
         Render white text with a black outline as a transparent clip.
         moviepy's own TextClip cuts off everything below the tallest letters with Pillow 11.2 and newer,
@@ -401,6 +404,8 @@ class Meme(commands.Cog):
         Returns
         ----------
         (ImageClip): The text with a transparent background
+        (int): How far down the clip the text's baseline is
+        (int): The height of capital letters above the baseline, at the size the text ended up being
         """
 
         font = misc_utils.load_font(misc_utils.UNICODE_FONT, font_size)
@@ -414,10 +419,12 @@ class Meme(commands.Cog):
             left, _, right, _ = font.getbbox(text, stroke_width=stroke_width, anchor="ls")
 
         ascent, descent = font.getmetrics()
+        baseline = ascent + stroke_width
+        cap_height = -font.getbbox("H", anchor="ls")[1]
 
         image = Image.new("RGBA", (right - left, ascent + descent + 2 * stroke_width), (0, 0, 0, 0))
         ImageDraw.Draw(image).text(
-            (-left, ascent + stroke_width),
+            (-left, baseline),
             text,
             font=font,
             fill="white",
@@ -425,7 +432,7 @@ class Meme(commands.Cog):
             stroke_width=stroke_width,
             stroke_fill="black",
         )
-        return ImageClip(np.array(image))
+        return ImageClip(np.array(image)), baseline, cap_height
 
     @staticmethod
     def make_crab(top_text: str, bottom_text: str, user_id: int):
@@ -442,22 +449,26 @@ class Meme(commands.Cog):
 
         clip = VideoFileClip("./src/assets/crab.mp4")
 
-        # Leave 5% of the video's width free on each side
+        # A solid line between the texts, which sit equally far from it: the top text's baseline above it,
+        # and the top of the bottom text's capital letters below it
+        line_top, line_thickness, line_width = 381, 6, 708
+        gap = 21
+        line = ColorClip(size=(line_width, line_thickness), color=(255, 255, 255)).with_position(("center", line_top))
+
+        # Leave 5% of the video's width free on each side. Long texts are shrunk to fit
         max_width = int(clip.w * 0.9)
-        top_part = Meme.text_clip(top_text, 60, stroke_width=2, max_width=max_width)
-        # Long texts are shrunk to fit, so keep the top text on the baseline full-size text would have,
-        # right above the line, instead of letting it float up. Ascent scales with the font size
-        ascent, descent = misc_utils.load_font(misc_utils.UNICODE_FONT, 60).getmetrics()
-        top_ascent = round((top_part.h - 2 * 2) * ascent / (ascent + descent))
-        top_part = top_part.with_position(("center", 300 + ascent - top_ascent))
-        middle_part = Meme.text_clip("_" * 26, 48).with_position(("center", "center"))
-        bottom_part = Meme.text_clip(bottom_text, 60, stroke_width=2, max_width=max_width).with_position(
-            ("center", 400)
+        top_part, top_baseline, _ = Meme.text_clip(top_text, 60, stroke_width=2, max_width=max_width)
+        top_part = top_part.with_position(("center", line_top - gap - top_baseline))
+        bottom_part, bottom_baseline, bottom_cap_height = Meme.text_clip(
+            bottom_text, 60, stroke_width=2, max_width=max_width
+        )
+        bottom_part = bottom_part.with_position(
+            ("center", line_top + line_thickness + gap - (bottom_baseline - bottom_cap_height))
         )
 
         parts = [
             part.with_start(11.0).with_duration(26.0).with_effects([vfx.CrossFadeIn(1)])
-            for part in (top_part, middle_part, bottom_part)
+            for part in (top_part, line, bottom_part)
         ]
 
         video = CompositeVideoClip([clip, *parts]).with_duration(26.0)
