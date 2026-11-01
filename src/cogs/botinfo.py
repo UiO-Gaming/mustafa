@@ -77,7 +77,7 @@ class BotInfo(commands.Cog):
         embed.add_field(name="Ressursbruk", value=f"RAM: {memory_usage} MB")
         embed.add_field(name="Kernel", value=f"{platform.system()} {platform.release()}")
         if exists("/.dockerenv"):
-            embed.add_field(name="Docker", value="✔️")
+            embed.add_field(name="Docker", value="✅")
         if version := self.bot.version:
             embed.add_field(name="Versjon", value=f"`{version.branch}`\n{self.commit_link(version)}")
         embed.add_field(
