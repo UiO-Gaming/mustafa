@@ -347,10 +347,12 @@ class Misc(commands.Cog):
         image.paste(user, (635, 94))
         image.paste(heart, (311, 94), mask=mask)
         draw = ImageDraw.Draw(image)
-        font = ImageFont.truetype("./src/assets/fonts/comic.ttf", 86)
-        font_size = font.getbbox(f"{match_percent}%")
-        font_size = ((image.size[0] - font_size[2]) / 2, (image.size[1] - font_size[3]) / 2)
-        draw.text(font_size, f"{match_percent}%", font=font, fill=(255, 255, 255, 255))
+        font = ImageFont.truetype(misc_utils.UNICODE_FONT, 86)
+        text = f"{match_percent}%"
+        # Center the drawn glyphs themselves, since the font's line height puts space above and below them
+        left, top, right, bottom = draw.textbbox((0, 0), text, font=font)
+        position = ((image.size[0] - (right - left)) / 2 - left, (image.size[1] - (bottom - top)) / 2 - top)
+        draw.text(position, text, font=font, fill=(255, 255, 255, 255))
 
         # Save image
         output = BytesIO()

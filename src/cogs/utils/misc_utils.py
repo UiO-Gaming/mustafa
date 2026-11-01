@@ -1,8 +1,8 @@
 import asyncio
 import datetime
 import functools
+import re
 import subprocess
-import textwrap
 from dataclasses import dataclass
 from math import ceil
 
@@ -13,6 +13,8 @@ import numpy as np
 from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
+
+UNICODE_FONT = "./src/assets/fonts/NotoSansCJK-Bold.ttc"
 
 # Midnight in the bot's time zone. run.py sets it before loading the cogs
 MIDNIGHT = datetime.time(tzinfo=datetime.UTC)
@@ -249,17 +251,92 @@ class Paginator:
         return self.get_page(self.current_page)
 
 
+@functools.lru_cache(maxsize=256)
+def load_font(font_path: str, font_size: int) -> ImageFont.FreeTypeFont:
+    """
+    Load a font, reusing fonts that have already been loaded
+
+    Parameters
+    ----------
+    font_path (str): Path to the font file
+    font_size (int): The font size
+
+    Returns
+    ----------
+    (ImageFont.FreeTypeFont): The font
+    """
+
+    return ImageFont.truetype(font_path, font_size)
+
+
+# Chinese, Japanese and Korean characters. Lines can break between any two of them
+CJK_CHARACTER = re.compile(r"[\u2e80-\u9fff\uac00-\ud7af\uf900-\ufaff\uff00-\uffef]")
+
+
+def wrap_text(text: str, font: ImageFont.FreeTypeFont, max_width: float, break_words: bool) -> str | None:
+    """
+    Break text into lines that are at most max_width pixels wide.
+    Lines break at spaces, and between Chinese, Japanese and Korean characters
+
+    Parameters
+    ----------
+    text (str): The text to wrap
+    font (ImageFont.FreeTypeFont): The font the text will be drawn with
+    max_width (float): The maximum width of a line in pixels
+    break_words (bool): Whether to split words too wide for a line of their own between their letters
+
+    Returns
+    ----------
+    (str | None): The text with newlines added. None if a word is too wide and break_words is False
+    """
+
+    lines = []
+    for paragraph in text.split("\n"):
+        # Pieces that can go on separate lines, with the separator to put before them on the same line
+        pieces = []
+        for i, word in enumerate(paragraph.split(" ")):
+            separator = " " if i else ""
+            for piece in re.split(f"({CJK_CHARACTER.pattern})", word):
+                if piece or not pieces:
+                    pieces.append((separator, piece))
+                    separator = ""
+
+        line = ""
+        for separator, piece in pieces:
+            candidate = f"{line}{separator}{piece}" if line else piece
+            if font.getlength(candidate) <= max_width:
+                line = candidate
+                continue
+
+            if line:
+                lines.append(line)
+            if font.getlength(piece) <= max_width:
+                line = piece
+                continue
+            if not break_words:
+                return None
+
+            line = ""
+            for char in piece:
+                if line and font.getlength(line + char) > max_width:
+                    lines.append(line)
+                    line = ""
+                line += char
+        lines.append(line)
+
+    return "\n".join(lines)
+
+
 def put_text_in_box(
     image: np.ndarray,
     text: str,
     top_left: tuple,
     bottom_right: tuple,
-    font_path: str = "./src/assets/fonts/impact.ttf",
-    font_size: int = 10,
+    font_path: str = UNICODE_FONT,
     color: tuple = (0, 0, 0),
 ):
     """
-    Puts text inside a bounding box on the cv2 image with automatic text wrapping, using PIL for text rendering.
+    Puts text inside a bounding box on the cv2 image, wrapped and as large as it can be while still fitting
 
     Parameters
     ----------
@@ -267,8 +344,7 @@ def put_text_in_box(
     text (str): Text to be put on the image.
     top_left (tuple): (x, y) Top-left corner of the bounding box.
     bottom_right (tuple): (x, y) Bottom-right corner of the bounding box.
-    font_path (str): Path to the font file. Defaults to Impact font.
-    font_size (int): Initial font size. Defaults to 10.
+    font_path (str): Path to the font file. Defaults to Noto Sans CJK, which covers most scripts users write in.
     color (tuple): Text color in RGB. Defaults to (0, 0, 0).
     """
 
@@ -276,35 +352,44 @@ def put_text_in_box(
     image_pil = Image.fromarray(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
     draw = ImageDraw.Draw(image_pil)
 
-    # Get coordinates of the bounding box
+    # Leave 5% padding on every side of the box
     x1, y1 = top_left
     x2, y2 = bottom_right
-
-    # Get the width and height of the bounding box
-    # We multiply by 0.9 to give some padding
     w, h = (x2 - x1) * 0.9, (y2 - y1) * 0.9
 
-    # Add newlines to the text. Here we have gone with 15 characters per line
-    # This is arbitrary, but seems to work well
-    text = textwrap.fill(text, width=15)
+    def layout(font_size: int, break_words: bool) -> tuple[ImageFont.FreeTypeFont, str, tuple] | None:
+        font = load_font(font_path, font_size)
+        wrapped = wrap_text(text, font, w, break_words)
+        if wrapped is None:
+            return None
+        return font, wrapped, draw.multiline_textbbox((0, 0), wrapped, font=font, align="center")
 
-    # Increase the font size as long as the next size still fits in the bounding box
-    # We also have to check the height, since the text might be too tall for the box
-    font = ImageFont.truetype(font_path, font_size)
-    while True:
-        next_font = ImageFont.truetype(font_path, font_size + 1)
+    def largest_fitting_size(break_words: bool) -> int:
+        # Larger fonts never fit better, so binary search for the largest size that fits.
+        # The font size can't usefully be larger than the box is tall. 0 means nothing fits
+        low, high = 0, max(1, int(h))
+        while low < high:
+            middle = (low + high + 1) // 2
+            result = layout(middle, break_words)
+            if result and result[2][2] - result[2][0] <= w and result[2][3] - result[2][1] <= h:
+                low = middle
+            else:
+                high = middle - 1
+        return low
 
-        left, top, right, bottom = draw.multiline_textbbox((0, 0), text, font=next_font, align="center")
+    # Splitting words in the middle makes them hard to read, so only do it when keeping them whole
+    # would make the text less than half as big, like for one very long word
+    whole_words_size = largest_fitting_size(break_words=False)
+    split_words_size = largest_fitting_size(break_words=True)
+    if whole_words_size and whole_words_size * 2 >= split_words_size:
+        font, wrapped, (left, top, right, bottom) = layout(whole_words_size, break_words=False)
+    else:
+        font, wrapped, (left, top, right, bottom) = layout(max(1, split_words_size), break_words=True)
 
-        if right - left >= w or bottom - top >= h:
-            break
-
-        font = next_font
-        font_size += 1
-
-    # Actually draw the text
-    center_of_box = ((x1 + x2) // 2, (y1 + y2) // 2)
-    draw.multiline_text(center_of_box, text, font=font, fill=color, align="center", anchor="mm")
+    # Center the drawn text itself in the box. Fonts leave space above and below the letters,
+    # so centering the line height would push short text like "a" off center
+    position = ((x1 + x2 - (right - left)) / 2 - left, (y1 + y2 - (bottom - top)) / 2 - top)
+    draw.multiline_text(position, wrapped, font=font, fill=color, align="center")
 
     # Convert back to cv2 image format and update the original image
     cv2_image = cv2.cvtColor(np.array(image_pil), cv2.COLOR_RGB2BGR)

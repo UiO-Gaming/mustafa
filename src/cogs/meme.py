@@ -18,7 +18,6 @@ from moviepy import vfx
 from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageEnhance
-from PIL import ImageFont
 from PIL import UnidentifiedImageError
 
 from cogs.utils import discord_utils
@@ -29,7 +28,6 @@ NIGHTCORE_SPEED = 1.33
 # Resample first so the speed-up is the same whatever the source's sample rate is
 NIGHTCORE_FILTER = f"aresample=44100,asetrate=44100*{NIGHTCORE_SPEED},aresample=44100,bass=g=6:f=100:w=0.5,volume=0.8"
 MP3_BITRATES = [192, 160, 128, 112, 96, 80, 64]
-CRAB_FONT = "./src/assets/fonts/DejaVuSans-Bold.ttf"
 
 
 class Meme(commands.Cog):
@@ -149,9 +147,8 @@ class Meme(commands.Cog):
         template = cv2.imread("./src/assets/sivert_goodbad.jpg")
 
         # Draw text
-        font = "./src/assets/fonts/comic.ttf"
-        misc_utils.put_text_in_box(template, bad_text, (540, 0), (1080, 540), font)
-        misc_utils.put_text_in_box(template, good_text, (540, 540), (1080, 1080), font)
+        misc_utils.put_text_in_box(template, bad_text, (540, 0), (1080, 540))
+        misc_utils.put_text_in_box(template, good_text, (540, 540), (1080, 1080))
 
         # Save image to buffer
         _, buffer = cv2.imencode(".jpg", template)
@@ -388,7 +385,7 @@ class Meme(commands.Cog):
             self.bot.logger.warning(f"Failed to remove temporary file {temp_file}")
 
     @staticmethod
-    def text_clip(text: str, font_size: int, stroke_width: int = 0) -> ImageClip:
+    def text_clip(text: str, font_size: int, stroke_width: int = 0, max_width: int | None = None) -> ImageClip:
         """
         Render white text with a black outline as a transparent clip.
         moviepy's own TextClip cuts off everything below the tallest letters with Pillow 11.2 and newer,
@@ -397,17 +394,26 @@ class Meme(commands.Cog):
         Parameters
         ----------
         text (str): The text to render
-        font_size (int): The font size
+        font_size (int): The font size, unless the text has to be smaller to fit within max_width
         stroke_width (int): The width of the black outline
+        max_width (int | None): The widest the text can be in pixels. None means no limit
 
         Returns
         ----------
         (ImageClip): The text with a transparent background
         """
 
-        font = ImageFont.truetype(CRAB_FONT, font_size)
-        ascent, descent = font.getmetrics()
+        font = misc_utils.load_font(misc_utils.UNICODE_FONT, font_size)
         left, _, right, _ = font.getbbox(text, stroke_width=stroke_width, anchor="ls")
+
+        # The text is a single line, so shrink it until it fits.
+        # Scale by how much too wide it is to get close quickly, and step down at least one size each time
+        while max_width and right - left > max_width and font_size > 1:
+            font_size = max(1, min(font_size - 1, int(font_size * max_width / (right - left))))
+            font = misc_utils.load_font(misc_utils.UNICODE_FONT, font_size)
+            left, _, right, _ = font.getbbox(text, stroke_width=stroke_width, anchor="ls")
+
+        ascent, descent = font.getmetrics()
 
         image = Image.new("RGBA", (right - left, ascent + descent + 2 * stroke_width), (0, 0, 0, 0))
         ImageDraw.Draw(image).text(
@@ -436,9 +442,18 @@ class Meme(commands.Cog):
 
         clip = VideoFileClip("./src/assets/crab.mp4")
 
-        top_part = Meme.text_clip(top_text, 60, stroke_width=2).with_position(("center", 300))
-        middle_part = Meme.text_clip("____________________", 48).with_position(("center", "center"))
-        bottom_part = Meme.text_clip(bottom_text, 60, stroke_width=2).with_position(("center", 400))
+        # Leave 5% of the video's width free on each side
+        max_width = int(clip.w * 0.9)
+        top_part = Meme.text_clip(top_text, 60, stroke_width=2, max_width=max_width)
+        # Long texts are shrunk to fit, so keep the top text on the baseline full-size text would have,
+        # right above the line, instead of letting it float up. Ascent scales with the font size
+        ascent, descent = misc_utils.load_font(misc_utils.UNICODE_FONT, 60).getmetrics()
+        top_ascent = round((top_part.h - 2 * 2) * ascent / (ascent + descent))
+        top_part = top_part.with_position(("center", 300 + ascent - top_ascent))
+        middle_part = Meme.text_clip("_" * 26, 48).with_position(("center", "center"))
+        bottom_part = Meme.text_clip(bottom_text, 60, stroke_width=2, max_width=max_width).with_position(
+            ("center", 400)
+        )
 
         parts = [
             part.with_start(11.0).with_duration(26.0).with_effects([vfx.CrossFadeIn(1)])

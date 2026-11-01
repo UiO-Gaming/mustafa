@@ -16,6 +16,9 @@ RUN .venv/bin/python -m nltk.downloader -d /usr/local/share/nltk_data stopwords
 
 COPY . .
 
+# Let Graphviz find the bundled font for text in other scripts, like CJK
+RUN mkdir -p /usr/local/share/fonts && ln -s /app/src/assets/fonts/NotoSansCJK-Bold.ttc /usr/local/share/fonts/
+
 ENV PATH="/app/.venv/bin:$PATH"
 
 VOLUME /app/logs

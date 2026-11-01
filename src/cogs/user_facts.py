@@ -408,6 +408,8 @@ class UserFacts(commands.Cog):
         graph.attr("graph", overlap="false", splines="True")
         graph.node_attr["style"] = "filled"
         graph.node_attr["shape"] = "circle"
+        # Display names can be in any script. The Dockerfile makes the bundled font available to Graphviz
+        graph.node_attr["fontname"] = "Noto Sans CJK JP"
 
         # Invoking user's node
         graph.node(str(user.id), f"{user.display_name}\n{mbti}", color="green")
