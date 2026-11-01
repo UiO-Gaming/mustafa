@@ -15,7 +15,7 @@ dependencies = [
     "nltk==3.10.*",
     "numpy==2.5.*",
     "opencv-python==5.0.*",
-    "pillow>=9.2,<12.0",
+    "pillow==13.0.*",
     "psutil==7.2.*",
     "psycopg-pool==3.3.*",
     "psycopg[binary]==3.3.*",
@@ -30,6 +30,11 @@ dependencies = [
 dev = [
     "pre-commit==4.7.*",
 ]
+
+[tool.uv]
+# moviepy 2.2.1 (latest release) caps pillow below 12, but every version below 13 has known vulnerabilities.
+# moviepy's main branch has already dropped the cap, so this can be removed once a release includes it
+override-dependencies = ["pillow>=13.0"]
 
 [tool.black]
 line-length = 120
