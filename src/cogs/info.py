@@ -1,3 +1,5 @@
+from collections import Counter
+
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -107,22 +109,8 @@ class Info(commands.Cog):
 
         # Member count and status counts
         total_members = interaction.guild.member_count
-        bot_members = 0
-        online_members = 0
-        idle_members = 0
-        dnd_members = 0
-        offline_members = 0
-        for member in interaction.guild.members:
-            if member.bot:
-                bot_members += 1
-            if str(member.status) == "online":
-                online_members += 1
-            elif str(member.status) == "idle":
-                idle_members += 1
-            elif str(member.status) == "dnd":
-                dnd_members += 1
-            elif str(member.status) == "offline":
-                offline_members += 1
+        bot_members = sum(member.bot for member in interaction.guild.members)
+        status_counts = Counter(member.status for member in interaction.guild.members)
 
         # Roles
         roles = self.construct_role_string(interaction.guild.roles)
@@ -223,10 +211,7 @@ class Info(commands.Cog):
             name=f"Medlemmer ({total_members})",
             value=f"👤 Mennesker: **{int(total_members) - int(bot_members)}**\n"
             + f"🤖 Båtter: **{bot_members}**\n"
-            + f'{self.bot.emoji["online"]}{online_members} '
-            + f'{self.bot.emoji["idle"]}{idle_members} '
-            + f'{self.bot.emoji["dnd"]}{dnd_members} '
-            + f'{self.bot.emoji["offline"]}{offline_members}',
+            + discord_utils.format_status_counts(status_counts, self.bot.emoji, " "),
         )
         embed.add_field(name=f"Roller ({len(interaction.guild.roles) - 1})", value=roles, inline=False)
         if interaction.guild.premium_tier != 0:

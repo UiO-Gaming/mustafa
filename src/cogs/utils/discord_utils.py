@@ -1,3 +1,4 @@
+from collections import Counter
 from dataclasses import dataclass
 from dataclasses import field
 from datetime import datetime
@@ -11,6 +12,26 @@ from discord.ext import tasks
 
 from cogs.utils import embed_templates
 from cogs.utils import misc_utils
+
+SHOWN_STATUSES = (discord.Status.online, discord.Status.idle, discord.Status.dnd, discord.Status.offline)
+
+
+def format_status_counts(status_counts: Counter[discord.Status], emoji: dict[str, str], separator: str) -> str:
+    """
+    Format how many members have each status, as status emojis followed by the counts
+
+    Parameters
+    ----------
+    status_counts (Counter[discord.Status]): How many members have each status
+    emoji (dict[str, str]): The bot's emojis, which have an entry for every status
+    separator (str): What to put between the statuses
+
+    Returns
+    ----------
+    (str): The formatted status counts
+    """
+
+    return separator.join(f"{emoji[status.value]}{status_counts[status]}" for status in SHOWN_STATUSES)
 
 
 async def send_as_txt_file(interaction: discord.Interaction, content: str, filename: str):

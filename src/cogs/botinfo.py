@@ -1,4 +1,5 @@
 import platform
+from collections import Counter
 from os import getpid
 from os.path import exists
 from time import time
@@ -8,6 +9,7 @@ from discord import app_commands
 from discord.ext import commands
 from psutil import Process
 
+from cogs.utils import discord_utils
 from cogs.utils import embed_templates
 from cogs.utils import misc_utils
 
@@ -54,30 +56,10 @@ class BotInfo(commands.Cog):
         memory_usage = round(process.memory_info().rss / 1000000, 1)
 
         # Member stats
-        #
-        # This is a pretty stupid way of doing things but it's the best I can come up with.
-        # Using curly brackets for both dicts and sets is retarded becuase
-        # I have to do this shit in order to create a fucking empty set.
-        #
-        # Apparently you can't access user presences, only member presences
-        # Because of that I have to use sets instead of ints in order to not count duplicate users.
-        # Fucking hell discord...
-        total_members = set([])
-        online_members = set([])
-        idle_members = set([])
-        dnd_members = set([])
-        offline_members = set([])
-        for guild in self.bot.guilds:
-            for member in guild.members:
-                total_members.add(member.id)
-                if str(member.status) == "online":
-                    online_members.add(member.id)
-                elif str(member.status) == "idle":
-                    idle_members.add(member.id)
-                elif str(member.status) == "dnd":
-                    dnd_members.add(member.id)
-                elif str(member.status) == "offline":
-                    offline_members.add(member.id)
+        # Presences are only available on members, and a user in several servers shows up once per server,
+        # so key by id to count every user once
+        statuses = {member.id: member.status for member in self.bot.get_all_members()}
+        status_counts = Counter(statuses.values())
 
         # Build embed
         embed = discord.Embed(color=interaction.client.user.color, url=self.bot.misc["website"])
@@ -99,11 +81,8 @@ class BotInfo(commands.Cog):
         if version := self.bot.version:
             embed.add_field(name="Versjon", value=f"`{version.branch}`\n{self.commit_link(version)}")
         embed.add_field(
-            name=f"Brukere ({len(total_members)})",
-            value=f'{self.bot.emoji["online"]}{len(online_members)}\n'
-            + f'{self.bot.emoji["idle"]}{len(idle_members)}\n'
-            + f'{self.bot.emoji["dnd"]}{len(dnd_members)}\n'
-            + f'{self.bot.emoji["offline"]}{len(offline_members)}',
+            name=f"Brukere ({len(statuses)})",
+            value=discord_utils.format_status_counts(status_counts, self.bot.emoji, "\n"),
         )
         embed.add_field(
             name="Lenker",
