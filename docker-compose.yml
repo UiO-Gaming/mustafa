@@ -2,7 +2,6 @@ services:
   mustafa:
     container_name: mustafa
     build: .
-    network_mode: "host"
     environment:
       - TZ=Europe/Oslo
     volumes:
