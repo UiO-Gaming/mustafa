@@ -149,12 +149,17 @@ class Bot(commands.Bot):
                     + "twice in the dev guild. Use a separate bot application for development, see the README"
                 )
 
-    async def close(self):
+    async def __aexit__(self, *args):
         """
-        Close the HTTP session and database pool when the bot shuts down
+        Close the HTTP session and database pool after the bot has shut down. This isn't done in close(),
+        because bot.run doesn't wait for a close() started by the SIGTERM handler to finish
+
+        Parameters
+        ----------
+        *args (tuple): The exception type, value and traceback if the bot stopped because of an error
         """
 
-        await super().close()
+        await super().__aexit__(*args)
         if hasattr(self, "http_session"):
             await self.http_session.close()
         if self.db_pool:
