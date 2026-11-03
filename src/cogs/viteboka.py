@@ -43,11 +43,7 @@ async def fetch_article(session: aiohttp.ClientSession, title: str):
         "disablelimitreport": 1,
     }
 
-    async with session.get(API_URL, params=params) as response:
-        if response.status != 200:
-            raise VitebokaException("Klarte ikke å nå API")
-        page = await response.json(content_type=None)
-    if not (parse := page.get("parse")):
+    if not (parse := await parse_page(session, params)):
         raise VitebokaException(
             "Fant ingen artikkel med det navnet. Kan hende den finnes, men wiki-søk er balle. De burde tatt søketek"
         )
@@ -55,16 +51,60 @@ async def fetch_article(session: aiohttp.ClientSession, title: str):
     title = parse["title"]
     url = f"{WIKI_BASE_URL}/?curid={parse['pageid']}"
     image = await fetch_page_image(session, title)
+    text = await html_to_markdown(parse["text"])
+
+    # Articles that start with a heading have an empty introduction, so the whole article is used instead
+    if not text:
+        del params["section"]
+        parse = await parse_page(session, params)
+        text = await html_to_markdown(parse["text"])
+
+    return title, url, shorten(text, MAX_TEXT_LENGTH), image
+
+
+async def parse_page(session: aiohttp.ClientSession, params: dict) -> dict | None:
+    """
+    Have Viteboka render an article
+
+    Parameters
+    ----------
+    session (aiohttp.ClientSession): The HTTP session to use
+    params (dict): The query parameters for the parse API
+
+    Returns
+    ----------
+    (dict | None): The rendered article. None if it doesn't exist
+    """
+
+    async with session.get(API_URL, params=params) as response:
+        if response.status != 200:
+            raise VitebokaException("Klarte ikke å nå API")
+        page = await response.json(content_type=None)
+    return page.get("parse")
+
+
+async def html_to_markdown(html: str) -> str:
+    """
+    Convert article HTML from Viteboka to markdown that Discord can show
+
+    Parameters
+    ----------
+    html (str): The article HTML
+
+    Returns
+    ----------
+    (str): The markdown text
+    """
+
     text = await asyncio.to_thread(
         pypandoc.convert_text,
-        parse["text"],
+        html,
         "gfm-raw_html",
         format="html",
         extra_args=["--wrap=none"],
         filters=[PANDOC_FILTER],
     )
-
-    return title, url, shorten(text.strip(), MAX_TEXT_LENGTH), image
+    return text.strip()
 
 
 async def fetch_page_image(session: aiohttp.ClientSession, title: str) -> str | None:
