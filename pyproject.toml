@@ -1,6 +1,6 @@
 [project]
 name = "mustafa"
-version = "0.1.1"
+version = "0.1.2"
 description = "UiO Gaming Discord Bot"
 readme = "README.md"
 requires-python = ">=3.12"
