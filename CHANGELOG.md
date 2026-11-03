@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/UiO-Gaming/mustafa/compare/0.1.1...0.1.2) (2026-11-03)
+
+
+### Bug Fixes
+
+* show galtinn memberships without a type or end date ([eacf903](https://github.com/UiO-Gaming/mustafa/commit/eacf903abf9803027b426dd0ee68bebf6c22a3ed))
+
 ## [0.1.1](https://github.com/UiO-Gaming/mustafa/compare/0.1.0...0.1.1) (2026-11-03)
 
 
