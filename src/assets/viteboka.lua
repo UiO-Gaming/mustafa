@@ -5,6 +5,7 @@ local base_url = "https://viteboka.studentersamfundet.no"
 function Table() return {} end
 function Figure() return {} end
 function Image() return {} end
+function HorizontalRule() return {} end
 function LineBreak() return pandoc.Space() end
 
 -- Headings would show up as large text, so they're made bold instead
