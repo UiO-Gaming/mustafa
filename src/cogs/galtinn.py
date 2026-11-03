@@ -123,7 +123,8 @@ class Galtinn(commands.Cog):
             membership_status = "Har aldri vært medlem"
         else:
             membership_status = "Ja" if last_membership["is_valid"] else "Nei"
-            if last_membership["membership_type"] != "lifelong":
+            # Lifelong memberships have no end date
+            if last_membership["end_date"]:
                 expiration_date = datetime.strptime(last_membership["end_date"], "%Y-%m-%d")
                 expiration_date = misc_utils.localize(expiration_date, self.bot.timezone)
                 expires = discord.utils.format_dt(expiration_date, "D")
@@ -136,8 +137,10 @@ class Galtinn(commands.Cog):
             embed.description = f"<@{user['discord_profile']['discord_id']}>"
         embed.add_field(name="Medlem?", value=membership_status)
         if last_membership:
-            embed.add_field(name="Medlemskapstype", value=last_membership["membership_type"])
-            if last_membership["membership_type"] != "lifelong":
+            # Galtinn leaves out the type for members of the groups it counts as members without a membership
+            if membership_type := last_membership.get("membership_type"):
+                embed.add_field(name="Medlemskapstype", value=membership_type)
+            if last_membership["end_date"]:
                 embed.add_field(name="Gyldig til", value=f"{expires}\n{time_left}")
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
