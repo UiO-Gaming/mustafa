@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/UiO-Gaming/mustafa/compare/0.1.2...0.1.3) (2026-11-04)
+
+
+### Bug Fixes
+
+* **ci:** keep the checkout token out of the published image ([0e6718d](https://github.com/UiO-Gaming/mustafa/commit/0e6718d7518dbd852f3a4a8bafd81f3c9c34e656))
+
 ## [0.1.2](https://github.com/UiO-Gaming/mustafa/compare/0.1.1...0.1.2) (2026-11-03)
 
 
